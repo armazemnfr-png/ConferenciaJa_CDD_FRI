@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  matricula String   @unique
+  password  String
+  name      String
+  role      String   @default("DELIVERY")
+}
+
+model ItemMapa {
+  id             Int     @id @default(autoincrement())
+  mapa           String
+  motorista      String
+  codigoItem     String
+  descricao      String
+  quantidade     Int
+  unidade        String
+  paleteCompleto String
+  baia           String
+  conferido      Boolean @default(false)
+}
+model Matinal {
+  id              Int      @id @default(autoincrement())
+  roomName        String
+  fixedStartTime  String
+  actualEndTime   DateTime @default(now())
+  durationMinutes Int
+  date            DateTime @default(now())
+}
