@@ -49,9 +49,6 @@ export default function MatinalPlay() {
 
       // Atualiza a tela na hora
       setHistorico([novoRegistro, ...historico]);
-      alert(
-        `Matinal da ${room.name} finalizada! Tempo: ${duracaoMinutos} min.`,
-      );
     } catch (err) {
       console.error("Erro ao salvar, mas vou mostrar na tela mesmo assim");
       setHistorico([novoRegistro, ...historico]);

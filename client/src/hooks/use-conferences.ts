@@ -2,13 +2,48 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import type { Conference, InsertConference } from "@shared/schema";
 
-export function useConferences() {
+// Tipo para os filtros
+interface FilterParams {
+  startDate?: string;
+  endDate?: string;
+  driverId?: string;
+  mapNumber?: string;
+}
+
+export function useConferences(filters?: FilterParams) {
   return useQuery({
-    queryKey: [api.conferences.list.path],
+    // A queryKey agora inclui os filtros. Se o filtro mudar, o React Query recarrega.
+    queryKey: [api.conferences.list.path, filters],
     queryFn: async () => {
-      const res = await fetch(api.conferences.list.path, { credentials: "include" });
+      // Construímos a URL com os parâmetros de busca (query strings)
+      const url = new URL(window.location.origin + api.conferences.list.path);
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) url.searchParams.append(key, value);
+        });
+      }
+
+      const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch conferences");
       return api.conferences.list.responses[200].parse(await res.json());
+    },
+  });
+}
+
+export function useDashboardMetrics(filters?: FilterParams) {
+  return useQuery({
+    queryKey: [api.conferences.dashboard.path, filters],
+    queryFn: async () => {
+      const url = new URL(window.location.origin + api.conferences.dashboard.path);
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) url.searchParams.append(key, value);
+        });
+      }
+
+      const res = await fetch(url.toString(), { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch dashboard metrics");
+      return api.conferences.dashboard.responses[200].parse(await res.json());
     },
   });
 }
@@ -51,6 +86,7 @@ export function useStartConference() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.conferences.list.path] });
       queryClient.invalidateQueries({ queryKey: [api.conferences.get.path, variables.mapNumber] });
+      queryClient.invalidateQueries({ queryKey: [api.conferences.dashboard.path] });
     },
   });
 }
@@ -74,17 +110,6 @@ export function useFinishConference() {
       queryClient.invalidateQueries({ queryKey: [api.conferences.list.path] });
       queryClient.invalidateQueries({ queryKey: [api.conferences.get.path] });
       queryClient.invalidateQueries({ queryKey: [api.conferences.dashboard.path] });
-    },
-  });
-}
-
-export function useDashboardMetrics() {
-  return useQuery({
-    queryKey: [api.conferences.dashboard.path],
-    queryFn: async () => {
-      const res = await fetch(api.conferences.dashboard.path, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch dashboard metrics");
-      return api.conferences.dashboard.responses[200].parse(await res.json());
     },
   });
 }

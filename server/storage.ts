@@ -12,18 +12,17 @@ import {
   type Matinal,
   type InsertConference,
   type InsertWmsItem,
-  type InsertPromaxData,
-  type InsertDriverBase,
   type InsertMatinal,
   type UpdateConferenceRequest,
   type UpdateWmsItemRequest,
   type DashboardMetrics
 } from "@shared/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, desc, inArray } from "drizzle-orm";
 
+// Interface atualizada para aceitar filtros
 export interface IStorage {
   // Conferences
-  getConferences(): Promise<Conference[]>;
+  getConferences(filters?: any): Promise<Conference[]>;
   getConference(id: number): Promise<Conference | undefined>;
   getConferenceByMap(mapNumber: string): Promise<Conference | undefined>;
   createConference(conference: InsertConference): Promise<Conference>;
@@ -36,17 +35,19 @@ export interface IStorage {
   bulkInsertWmsItems(items: InsertWmsItem[]): Promise<void>;
 
   // Promax Data
-  bulkInsertPromaxData(items: InsertPromaxData[]): Promise<void>;
+  bulkInsertPromaxData(items: any[]): Promise<void>;
+  getPromaxByDriver(registration: string): Promise<PromaxData | undefined>;
 
   // Driver Base
   bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void>;
+  getDriverByRegistration(registration: string): Promise<DriverBase | undefined>;
 
   // Matinals
   getMatinals(): Promise<Matinal[]>;
   createMatinal(matinal: InsertMatinal): Promise<Matinal>;
 
-  // Dashboard Metrics
-  getDashboardMetrics(): Promise<DashboardMetrics>;
+  // Dashboard Metrics atualizado
+  getDashboardMetrics(filters?: any): Promise<DashboardMetrics>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -60,9 +61,34 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  // Conferences
-  async getConferences(): Promise<Conference[]> {
-    return await db.select().from(conferences);
+  // Conferences com Lógica de Filtro para TML
+  async getConferences(filters?: any): Promise<Conference[]> {
+    let query = db.select().from(conferences);
+    const conditions = [];
+
+    if (filters?.driverId) {
+      conditions.push(eq(conferences.driverId, filters.driverId));
+    }
+
+    if (filters?.mapNumber) {
+      conditions.push(sql`upper(trim(${conferences.mapNumber})) = ${filters.mapNumber.trim().toUpperCase()}`);
+    }
+
+    if (filters?.startDate) {
+      conditions.push(sql`${conferences.startTime} >= ${new Date(filters.startDate)}`);
+    }
+
+    if (filters?.endDate) {
+      const end = new Date(filters.endDate);
+      end.setHours(23, 59, 59, 999);
+      conditions.push(sql`${conferences.startTime} <= ${end}`);
+    }
+
+    if (conditions.length > 0) {
+      return await db.select().from(conferences).where(and(...conditions)).orderBy(desc(conferences.startTime));
+    }
+
+    return await db.select().from(conferences).orderBy(desc(conferences.startTime));
   }
 
   async getConference(id: number): Promise<Conference | undefined> {
@@ -71,16 +97,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getConferenceByMap(mapNumber: string): Promise<Conference | undefined> {
-    const [conference] = await db.select().from(conferences).where(eq(conferences.mapNumber, mapNumber));
+    const normalizedMap = String(mapNumber).trim().toUpperCase();
+    const [conference] = await db.select()
+      .from(conferences)
+      .where(sql`upper(trim(${conferences.mapNumber})) = ${normalizedMap}`)
+      .orderBy(desc(conferences.startTime))
+      .limit(1);
     return conference;
   }
 
   async createConference(conference: InsertConference): Promise<Conference> {
-    const [created] = await db.insert(conferences).values(conference).returning();
+    const [created] = await db.insert(conferences).values({
+      ...conference,
+      mapNumber: conference.mapNumber.trim().toUpperCase()
+    }).returning();
     return created;
   }
 
-  // LÓGICA DE CONFERÊNCIA: Atualiza status e registra data de término
   async updateConference(id: number, updates: UpdateConferenceRequest): Promise<Conference> {
     const [updated] = await db.update(conferences)
       .set({
@@ -95,9 +128,8 @@ export class DatabaseStorage implements IStorage {
   // WMS Items
   async getWmsItemsByMap(mapNumber: string): Promise<WmsItem[]> {
     const normalizedMap = String(mapNumber).trim().toUpperCase();
-    const results = await db.select().from(wmsItems)
+    return await db.select().from(wmsItems)
       .where(sql`upper(trim(${wmsItems.mapNumber})) = ${normalizedMap}`);
-    return results;
   }
 
   async getWmsItem(id: number): Promise<WmsItem | undefined> {
@@ -105,13 +137,9 @@ export class DatabaseStorage implements IStorage {
     return item;
   }
 
-  // LÓGICA DE CONFERÊNCIA: Salva os dados do item conferido
   async updateWmsItem(id: number, updates: UpdateWmsItemRequest): Promise<WmsItem> {
     const [updated] = await db.update(wmsItems)
-      .set({
-        ...updates,
-        isChecked: true // Força como conferido ao atualizar
-      })
+      .set({ ...updates, isChecked: true })
       .where(eq(wmsItems.id, id))
       .returning();
     return updated;
@@ -123,60 +151,91 @@ export class DatabaseStorage implements IStorage {
       await db.execute(sql`TRUNCATE TABLE wms_items RESTART IDENTITY CASCADE`);
       const chunkSize = 200;
       for (let i = 0; i < items.length; i += chunkSize) {
-        const chunk = items.slice(i, i + chunkSize);
-        await db.insert(wmsItems).values(chunk);
+        await db.insert(wmsItems).values(items.slice(i, i + chunkSize));
       }
     } catch (error) {
-      console.error("❌ ERRO NO UPLOAD:", error);
+      console.error("❌ ERRO NO UPLOAD WMS:", error);
       throw error;
     }
   }
 
   // Promax Data
+  async getPromaxByDriver(registration: string): Promise<PromaxData | undefined> {
+    const [entry] = await db.select()
+      .from(promaxData)
+      .where(and(
+        eq(promaxData.motorista, registration),
+        sql`upper(trim(${promaxData.fase})) = 'CARREGADO'`
+      ))
+      .limit(1);
+    return entry;
+  }
+
   async bulkInsertPromaxData(items: any[]): Promise<void> {
     if (items.length === 0) return;
+    await db.execute(sql`TRUNCATE TABLE promax_data RESTART IDENTITY CASCADE`);
     for (const item of items) {
-      const [driver] = await db.select()
-        .from(driverBase)
-        .where(eq(driverBase.registration, item.motorista));
-      const driverName = driver ? driver.name : `Matrícula: ${item.motorista}`;
+      const fase = String(item.fase || item.Fase || "").trim().toUpperCase();
+      if (fase !== "CARREGADO") continue;
+      const matricula = String(item.motorista || item.Motorista || "").trim();
+      const mapa = String(item.mapa || item.Mapa || "").trim();
+      if (!mapa || !matricula) continue;
 
-      await db.update(wmsItems)
-        .set({ plate: driverName })
-        .where(eq(wmsItems.mapNumber, item.mapa));
+      const [driver] = await db.select().from(driverBase).where(eq(driverBase.registration, matricula));
+      const driverName = driver ? driver.name : `Matrícula: ${matricula}`;
 
+      await db.update(wmsItems).set({ plate: driverName }).where(eq(wmsItems.mapNumber, mapa));
       await db.insert(promaxData).values({
-        mapa: item.mapa,
-        motorista: driverName,
+        mapa: mapa,
+        motorista: matricula,
+        fase: "CARREGADO",
+        veiculo: String(item.veiculo || item.Veículo || ""),
+        placa: String(item.placa || item.Placa || ""),
       });
     }
   }
 
   // Driver Base
+  async getDriverByRegistration(registration: string): Promise<DriverBase | undefined> {
+    const [driver] = await db.select().from(driverBase).where(eq(driverBase.registration, registration));
+    return driver;
+  }
+
   async bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void> {
     if (items.length === 0) return;
+    await db.execute(sql`TRUNCATE TABLE driver_base RESTART IDENTITY CASCADE`);
     const chunkSize = 500;
     for (let i = 0; i < items.length; i += chunkSize) {
-      const chunk = items.slice(i, i + chunkSize);
-      await db.insert(driverBase).values(chunk);
+      await db.insert(driverBase).values(items.slice(i, i + chunkSize));
     }
   }
 
-  // Dashboard Metrics
-  async getDashboardMetrics(): Promise<DashboardMetrics> {
-    const allConferences = await db.select().from(conferences);
-    const totalConferences = allConferences.length;
+  // Dashboard Metrics com Cálculo de TML Filtrado
+  async getDashboardMetrics(filters?: any): Promise<DashboardMetrics> {
+    const filteredConferences = await this.getConferences(filters);
+    const totalConferences = filteredConferences.length;
 
     let averageTimeMinutes = 0;
-    const completedConferences = allConferences.filter(c => c.status === "completed" && c.startTime && c.endTime);
-    if (completedConferences.length > 0) {
-      const totalTimeMs = completedConferences.reduce((acc, c) => {
-        return acc + (c.endTime!.getTime() - c.startTime!.getTime());
+    const completed = filteredConferences.filter(c => c.status === "completed" && c.startTime && c.endTime);
+
+    if (completed.length > 0) {
+      const totalTimeMs = completed.reduce((acc, c) => {
+        return acc + (new Date(c.endTime!).getTime() - new Date(c.startTime!).getTime());
       }, 0);
-      averageTimeMinutes = (totalTimeMs / completedConferences.length) / 60000;
+      averageTimeMinutes = (totalTimeMs / completed.length) / 60000;
     }
 
-    const allItems = await db.select().from(wmsItems);
+    // Filtro de itens baseado nos mapas encontrados
+    let allItems: WmsItem[] = [];
+    if (filters?.mapNumber) {
+      allItems = await this.getWmsItemsByMap(filters.mapNumber);
+    } else if (totalConferences > 0) {
+      const mapNumbers = filteredConferences.map(c => c.mapNumber);
+      allItems = await db.select().from(wmsItems).where(inArray(wmsItems.mapNumber, mapNumbers));
+    } else {
+      allItems = await db.select().from(wmsItems);
+    }
+
     const totalItems = allItems.length;
     let divergencePercentage = 0;
     let damagePercentage = 0;

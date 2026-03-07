@@ -12,6 +12,38 @@ export async function registerRoutes(
 
   registerAuthRoutes(app);
 
+  // --- ROTA DE VALIDAÇÃO DE MOTORISTA (LOGIN INTELIGENTE) ---
+  app.get("/api/driver/check/:registration", async (req, res) => {
+    try {
+      const { registration } = req.params;
+
+      // 1. Busca o colaborador na base MOT
+      const driver = await storage.getDriverByRegistration(registration);
+      if (!driver) {
+        return res.status(404).json({ 
+          message: "Matrícula não encontrada na base de motoristas (MOT)." 
+        });
+      }
+
+      // 2. Busca o mapa vinculado na fase CARREGADO
+      const promaxEntry = await storage.getPromaxByDriver(registration);
+
+      // Retorna os dados consolidados
+      res.json({
+        success: true,
+        nome: driver.name,
+        sala: driver.room,
+        mapa: promaxEntry ? promaxEntry.mapa : null,
+        message: promaxEntry 
+          ? `Bem-vindo, ${driver.name}!` 
+          : `Olá ${driver.name}, não encontramos mapa na fase 'CARREGADO' para você.`
+      });
+    } catch (err) {
+      console.error("Erro ao validar motorista:", err);
+      res.status(500).json({ message: "Erro interno ao validar matrícula." });
+    }
+  });
+
   // Matinals
   app.get(api.matinals.list.path, async (req, res) => {
     const data = await storage.getMatinals();
@@ -39,9 +71,22 @@ export async function registerRoutes(
   });
 
   // Conferences
+  // --- CONFERENCES LIST ATUALIZADA COM FILTROS ---
   app.get(api.conferences.list.path, async (req, res) => {
-    const data = await storage.getConferences();
-    res.json(data);
+    try {
+      const filters = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        driverId: req.query.driverId as string,
+        mapNumber: req.query.mapNumber as string,
+      };
+
+      const data = await storage.getConferences(filters);
+      res.json(data);
+    } catch (err) {
+      console.error("Erro ao listar conferências:", err);
+      res.status(500).json({ message: "Erro ao buscar lista de conferências" });
+    }
   });
 
   app.get(api.conferences.get.path, async (req, res) => {
@@ -90,9 +135,22 @@ export async function registerRoutes(
     }
   });
 
+  // --- DASHBOARD METRICS ATUALIZADA COM FILTROS ---
   app.get(api.conferences.dashboard.path, async (req, res) => {
-    const metrics = await storage.getDashboardMetrics();
-    res.json(metrics);
+    try {
+      const filters = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        driverId: req.query.driverId as string,
+        mapNumber: req.query.mapNumber as string,
+      };
+
+      const metrics = await storage.getDashboardMetrics(filters);
+      res.json(metrics);
+    } catch (err) {
+      console.error("Erro ao processar dashboard:", err);
+      res.status(500).json({ message: "Erro ao calcular métricas do dashboard" });
+    }
   });
 
   app.get("/api/conferences/completed", async (_req, res) => {
@@ -103,7 +161,30 @@ export async function registerRoutes(
       res.status(500).json({ message: "Erro ao buscar histórico" });
     }
   });
+  // --- NOVA ROTA: Finalizar conferência usando o número do Mapa ---
+  app.post("/api/conferences/finish-by-map/:mapNumber", async (req, res) => {
+    try {
+      const { mapNumber } = req.params;
 
+      // 1. Localiza a conferência pelo número do mapa
+      const conference = await storage.getConferenceByMap(mapNumber);
+
+      if (!conference) {
+        return res.status(404).json({ message: "Conferência não encontrada para este mapa." });
+      }
+
+      // 2. Atualiza o status para finalizado e define a hora do fim
+      const updated = await storage.updateConference(conference.id, {
+        status: "completed",
+        endTime: new Date()
+      });
+
+      res.json(updated);
+    } catch (err) {
+      console.error("Erro ao finalizar mapa:", err);
+      res.status(500).json({ message: "Erro interno ao finalizar a conferência." });
+    }
+  });
   // WMS Items
   app.get('/api/wms-items/list/:mapNumber', async (req, res) => {
     try {
@@ -153,10 +234,6 @@ export async function registerRoutes(
     }
   });
 
-  /**
-   * ROTA DE ITENS CORRIGIDA
-   * Prioriza encontrar os produtos para o motorista não ficar travado.
-   */
   app.get('/api/itens/:mapNumber', async (req, res) => {
     try {
       const mapNumber = req.params.mapNumber.trim();
@@ -168,7 +245,6 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Mapa não encontrado no banco de dados." });
       }
 
-      // 2. Busca ou cria a conferência (Dashboard)
       let conferenceId: number | undefined;
       try {
         let conference = await storage.getConferenceByMap(mapNumber);
@@ -179,7 +255,7 @@ export async function registerRoutes(
             status: "in_progress",
             startTime: new Date()
           });
-        } else if (driverCode && conference.driverId === "N/A") {
+        } else if (driverCode && (conference.driverId === "N/A" || !conference.driverId)) {
           await storage.updateConference(conference.id, { driverId: driverCode });
         }
         conferenceId = conference.id;
