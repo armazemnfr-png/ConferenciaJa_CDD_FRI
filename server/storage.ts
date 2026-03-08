@@ -248,7 +248,14 @@ export class DatabaseStorage implements IStorage {
       const divergences = allItems.filter(i => i.isChecked && i.checkedQuantity !== null && i.checkedQuantity !== i.expectedQuantity).length;
       divergencePercentage = (divergences / totalItems) * 100;
 
-      const damaged = allItems.filter(i => i.hasDamage).length;
+      // Aceita booleano, número (1) ou string ('true') para hasDamage
+      const damaged = allItems.filter(i => {
+        const hasDamageValue = i.hasDamage;
+        if (typeof hasDamageValue === 'boolean') return hasDamageValue;
+        if (typeof hasDamageValue === 'number') return hasDamageValue === 1;
+        if (typeof hasDamageValue === 'string') return hasDamageValue.toLowerCase() === 'true';
+        return false;
+      }).length;
       damagePercentage = (damaged / totalItems) * 100;
 
       const partialCounts = allItems.filter(i => i.partialCountReason).length;

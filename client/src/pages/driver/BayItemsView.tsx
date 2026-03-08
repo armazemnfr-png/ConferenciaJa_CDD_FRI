@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
-import { CheckCircle2, Circle, ArrowLeft, Loader2, Package, Timer, Check } from "lucide-react";
+import { CheckCircle2, Circle, ArrowLeft, Loader2, Package, Timer, Check, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +11,9 @@ export default function BayItemsView() {
   const mapNumber = params?.mapNumber;
   const [itens, setItens] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mostrarSucesso, setMostrarSucesso] = useState(false); // Estado para o alerta gigante
+  const [mostrarSucesso, setMostrarSucesso] = useState(false);
+  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
+  const [damageNote, setDamageNote] = useState("");
   const { toast } = useToast();
 
   const [seconds, setSeconds] = useState(0);
@@ -61,6 +63,40 @@ export default function BayItemsView() {
     setItens(prev => prev.map(item => 
       item.id === id ? { ...item, conferido: !item.conferido } : item
     ));
+  };
+
+  const toggleAvaria = async (id: number) => {
+    const item = itens.find(i => i.id === id);
+    if (!item) return;
+
+    const newHasDamage = !item.hasDamage;
+    
+    try {
+      const response = await fetch(`/api/wms-items/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hasDamage: newHasDamage,
+          damageDescription: newHasDamage ? damageNote : null
+        })
+      });
+
+      if (response.ok) {
+        setItens(prev => prev.map(i => 
+          i.id === id 
+            ? { ...i, hasDamage: newHasDamage, damageDescription: newHasDamage ? damageNote : null }
+            : i
+        ));
+        setSelectedItemId(null);
+        setDamageNote("");
+        toast({
+          title: newHasDamage ? "Avaria registrada" : "Avaria removida",
+          description: newHasDamage ? `Item marcado como avariado` : `Status de avaria removido`
+        });
+      }
+    } catch (error) {
+      toast({ variant: "destructive", title: "Erro", description: "Falha ao registrar avaria" });
+    }
   };
 
   const handleFinalizar = async () => {
@@ -126,31 +162,91 @@ export default function BayItemsView() {
 
       <div className="p-4 space-y-3">
         {itens.map((item) => (
-          <Card 
-            key={item.id} 
-            className={`border-none shadow-sm transition-all duration-300 ${item.conferido ? 'bg-green-100 ring-1 ring-green-500/30' : 'bg-white'}`}
-            onClick={() => toggleConferido(item.id)}
-          >
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex-1 pr-2">
-                <h2 className={`font-black text-base leading-tight uppercase ${item.conferido ? 'text-green-800' : 'text-gray-800'}`}>
-                  {item.item}
-                </h2>
-                <div className="flex gap-4 mt-2 items-center">
-                  <span className={`text-xs font-bold px-2 py-1 rounded ${item.conferido ? 'bg-green-600 text-white' : 'bg-[#f1b40e] text-black'}`}>
-                    QTD: {item.qtd}
-                  </span>
+          <div key={item.id} className="space-y-2">
+            <Card 
+              className={`border-none shadow-sm transition-all duration-300 cursor-pointer ${
+                item.conferido ? 'bg-green-100 ring-1 ring-green-500/30' : 
+                item.hasDamage ? 'bg-red-50 ring-1 ring-red-200' : 'bg-white'
+              }`}
+              onClick={() => toggleConferido(item.id)}
+            >
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex-1 pr-2">
+                  <h2 className={`font-black text-base leading-tight uppercase ${
+                    item.conferido ? 'text-green-800' : 
+                    item.hasDamage ? 'text-red-800' : 'text-gray-800'
+                  }`}>
+                    {item.item}
+                  </h2>
+                  <div className="flex gap-2 mt-2 items-center flex-wrap">
+                    <span className={`text-xs font-bold px-2 py-1 rounded ${item.conferido ? 'bg-green-600 text-white' : 'bg-[#f1b40e] text-black'}`}>
+                      QTD: {item.qtd}
+                    </span>
+                    {item.hasDamage && (
+                      <span className="text-xs font-bold px-2 py-1 rounded bg-red-500 text-white flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> AVARIA
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="flex-shrink-0">
-                {item.conferido ? (
-                  <CheckCircle2 className="w-10 h-10 text-green-600" />
-                ) : (
-                  <Circle className="w-10 h-10 text-gray-200" />
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                <div className="flex flex-col gap-2 flex-shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedItemId(selectedItemId === item.id ? null : item.id);
+                    }}
+                    className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                    title="Marcar/remover avaria"
+                  >
+                    <AlertTriangle className={`w-6 h-6 ${item.hasDamage ? 'text-red-600 fill-red-600' : 'text-gray-300'}`} />
+                  </button>
+                  {item.conferido ? (
+                    <CheckCircle2 className="w-10 h-10 text-green-600" />
+                  ) : (
+                    <Circle className="w-10 h-10 text-gray-200" />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            
+            {selectedItemId === item.id && (
+              <Card className="border-red-200 bg-red-50 shadow-sm">
+                <CardContent className="p-4 space-y-3">
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 block mb-2">Descrição da Avaria (Opcional)</label>
+                    <textarea
+                      value={damageNote}
+                      onChange={(e) => setDamageNote(e.target.value)}
+                      placeholder="Ex: Caixa amassada, produto com vazamento..."
+                      className="w-full px-3 py-2 text-sm border border-red-200 rounded-lg focus:ring-1 focus:ring-red-400 focus:border-transparent"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => toggleAvaria(item.id)}
+                      className={`flex-1 py-2 px-3 rounded-lg font-bold text-sm transition-colors ${
+                        item.hasDamage
+                          ? 'bg-red-600 text-white hover:bg-red-700'
+                          : 'bg-red-500 text-white hover:bg-red-600'
+                      }`}
+                    >
+                      {item.hasDamage ? 'Remover Avaria' : 'Marcar como Avariado'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedItemId(null);
+                        setDamageNote("");
+                      }}
+                      className="flex-1 py-2 px-3 rounded-lg font-bold text-sm bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         ))}
       </div>
 
