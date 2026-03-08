@@ -88,6 +88,15 @@ export const insertPromaxDataSchema = createInsertSchema(promaxData).omit({ id: 
 export const insertDriverBaseSchema = createInsertSchema(driverBase).omit({ id: true });
 export const insertMatinalSchema = createInsertSchema(matinals).omit({ id: true, date: true });
 
+// Update schema - explicitly allows partial updates with hasDamage
+export const updateWmsItemSchema = z.object({
+  isChecked: z.boolean().optional(),
+  checkedQuantity: z.number().nullable().optional(),
+  hasDamage: z.boolean().optional(),
+  damageDescription: z.string().nullable().optional(),
+  partialCountReason: z.string().nullable().optional(),
+});
+
 // Types
 export type WmsItem = typeof wmsItems.$inferSelect;
 export type InsertWmsItem = z.infer<typeof insertWmsItemSchema>;
@@ -108,7 +117,7 @@ export type CreateConferenceRequest = {
 };
 
 export type UpdateConferenceRequest = Partial<InsertConference>;
-export type UpdateWmsItemRequest = Partial<InsertWmsItem>;
+export type UpdateWmsItemRequest = z.infer<typeof updateWmsItemSchema>;
 
 // Responses
 export interface DashboardMetrics {

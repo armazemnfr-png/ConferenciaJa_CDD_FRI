@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { insertConferenceSchema, insertWmsItemSchema, insertMatinalSchema, conferences, wmsItems, matinals } from './schema';
+import { insertConferenceSchema, insertWmsItemSchema, insertMatinalSchema, updateWmsItemSchema, conferences, wmsItems, matinals } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -94,7 +94,7 @@ export const api = {
     update: {
       method: 'PATCH' as const,
       path: '/api/wms-items/:id' as const,
-      input: insertWmsItemSchema.partial(),
+      input: updateWmsItemSchema,
       responses: {
         200: z.custom<typeof wmsItems.$inferSelect>(),
         404: errorSchemas.notFound,

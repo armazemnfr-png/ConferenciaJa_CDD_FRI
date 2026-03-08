@@ -151,7 +151,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateWmsItem(id: number, updates: UpdateWmsItemRequest): Promise<WmsItem> {
     const [updated] = await db.update(wmsItems)
-      .set({ ...updates, isChecked: true })
+      .set(updates)
       .where(eq(wmsItems.id, id))
       .returning();
     return updated;
