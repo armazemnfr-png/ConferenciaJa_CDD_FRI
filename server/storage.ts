@@ -12,6 +12,7 @@ import {
   type Matinal,
   type InsertConference,
   type InsertWmsItem,
+  type InsertDriverBase,
   type InsertMatinal,
   type UpdateConferenceRequest,
   type UpdateWmsItemRequest,
@@ -19,10 +20,19 @@ import {
 } from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
 
-// Interface atualizada para aceitar filtros
+// Estendemos o tipo para que o Frontend reconheça as novas propriedades
+export type ConferenceWithMetrics = Conference & {
+  hasDivergence?: boolean;
+  hasDamage?: boolean;
+};
+
 export interface IStorage {
+  // Matinals
+  getMatinals(): Promise<Matinal[]>;
+  createMatinal(matinal: InsertMatinal): Promise<Matinal>;
+
   // Conferences
-  getConferences(filters?: any): Promise<Conference[]>;
+  getConferences(filters?: any): Promise<ConferenceWithMetrics[]>;
   getConference(id: number): Promise<Conference | undefined>;
   getConferenceByMap(mapNumber: string): Promise<Conference | undefined>;
   createConference(conference: InsertConference): Promise<Conference>;
@@ -42,16 +52,11 @@ export interface IStorage {
   bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void>;
   getDriverByRegistration(registration: string): Promise<DriverBase | undefined>;
 
-  // Matinals
-  getMatinals(): Promise<Matinal[]>;
-  createMatinal(matinal: InsertMatinal): Promise<Matinal>;
-
-  // Dashboard Metrics atualizado
+  // Dashboard Metrics
   getDashboardMetrics(filters?: any): Promise<DashboardMetrics>;
 }
 
 export class DatabaseStorage implements IStorage {
-  // Matinals
   async getMatinals(): Promise<Matinal[]> {
     return await db.select().from(matinals);
   }
@@ -61,9 +66,8 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  // Conferences com Lógica de Filtro para TML
-  async getConferences(filters?: any): Promise<Conference[]> {
-    let query = db.select().from(conferences);
+  // REVISADO: Agora busca os itens de cada conferência para marcar se houve erro
+  async getConferences(filters?: any): Promise<ConferenceWithMetrics[]> {
     const conditions = [];
 
     if (filters?.driverId) {
@@ -84,11 +88,20 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${conferences.startTime} <= ${end}`);
     }
 
-    if (conditions.length > 0) {
-      return await db.select().from(conferences).where(and(...conditions)).orderBy(desc(conferences.startTime));
-    }
+    const results = conditions.length > 0 
+      ? await db.select().from(conferences).where(and(...conditions)).orderBy(desc(conferences.startTime))
+      : await db.select().from(conferences).orderBy(desc(conferences.startTime));
 
-    return await db.select().from(conferences).orderBy(desc(conferences.startTime));
+    // Para cada conferência, verificamos se existem itens com divergência ou avaria no WMS
+    return await Promise.all(results.map(async (conf) => {
+      const items = await db.select().from(wmsItems).where(eq(wmsItems.mapNumber, conf.mapNumber));
+
+      return {
+        ...conf,
+        hasDivergence: items.some(i => i.isChecked && i.checkedQuantity !== null && i.checkedQuantity !== i.expectedQuantity),
+        hasDamage: items.some(i => i.hasDamage === true)
+      };
+    }));
   }
 
   async getConference(id: number): Promise<Conference | undefined> {
@@ -125,7 +138,6 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  // WMS Items
   async getWmsItemsByMap(mapNumber: string): Promise<WmsItem[]> {
     const normalizedMap = String(mapNumber).trim().toUpperCase();
     return await db.select().from(wmsItems)
@@ -159,14 +171,10 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Promax Data
   async getPromaxByDriver(registration: string): Promise<PromaxData | undefined> {
     const [entry] = await db.select()
       .from(promaxData)
-      .where(and(
-        eq(promaxData.motorista, registration),
-        sql`upper(trim(${promaxData.fase})) = 'CARREGADO'`
-      ))
+      .where(and(eq(promaxData.motorista, registration), sql`upper(trim(${promaxData.fase})) = 'CARREGADO'`))
       .limit(1);
     return entry;
   }
@@ -195,7 +203,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Driver Base
   async getDriverByRegistration(registration: string): Promise<DriverBase | undefined> {
     const [driver] = await db.select().from(driverBase).where(eq(driverBase.registration, registration));
     return driver;
@@ -210,7 +217,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Dashboard Metrics com Cálculo de TML Filtrado
   async getDashboardMetrics(filters?: any): Promise<DashboardMetrics> {
     const filteredConferences = await this.getConferences(filters);
     const totalConferences = filteredConferences.length;
@@ -225,7 +231,6 @@ export class DatabaseStorage implements IStorage {
       averageTimeMinutes = (totalTimeMs / completed.length) / 60000;
     }
 
-    // Filtro de itens baseado nos mapas encontrados
     let allItems: WmsItem[] = [];
     if (filters?.mapNumber) {
       allItems = await this.getWmsItemsByMap(filters.mapNumber);
@@ -237,9 +242,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     const totalItems = allItems.length;
-    let divergencePercentage = 0;
-    let damagePercentage = 0;
-    let partialCountPercentage = 0;
+    let divergencePercentage = 0, damagePercentage = 0, partialCountPercentage = 0;
 
     if (totalItems > 0) {
       const divergences = allItems.filter(i => i.isChecked && i.checkedQuantity !== null && i.checkedQuantity !== i.expectedQuantity).length;
