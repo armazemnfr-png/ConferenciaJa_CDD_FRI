@@ -78,14 +78,17 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`upper(trim(${conferences.mapNumber})) = ${filters.mapNumber.trim().toUpperCase()}`);
     }
 
+    // Melhorado: Usa início e fim do dia para evitar problemas com fuso horário
     if (filters?.startDate) {
-      conditions.push(sql`${conferences.startTime} >= ${new Date(filters.startDate)}`);
+      const startDate = new Date(filters.startDate);
+      startDate.setHours(0, 0, 0, 0);
+      conditions.push(sql`${conferences.startTime} >= ${startDate}`);
     }
 
     if (filters?.endDate) {
-      const end = new Date(filters.endDate);
-      end.setHours(23, 59, 59, 999);
-      conditions.push(sql`${conferences.startTime} <= ${end}`);
+      const endDate = new Date(filters.endDate);
+      endDate.setHours(23, 59, 59, 999);
+      conditions.push(sql`${conferences.startTime} <= ${endDate}`);
     }
 
     const results = conditions.length > 0 
@@ -244,6 +247,14 @@ export class DatabaseStorage implements IStorage {
     const totalItems = allItems.length;
     let divergencePercentage = 0, damagePercentage = 0, partialCountPercentage = 0;
 
+    // DEBUG: Log para diagnosticar problema das avarias
+    console.log('[getDashboardMetrics] Filtros:', filters);
+    console.log('[getDashboardMetrics] Total de conferências:', totalConferences);
+    console.log('[getDashboardMetrics] Total de itens no banco:', totalItems);
+    if (totalItems > 0 && totalItems < 100) {
+      console.log('[getDashboardMetrics] Amostra de itens:', allItems.slice(0, 5).map(i => ({ id: i.id, mapNumber: i.mapNumber, hasDamage: i.hasDamage, tipo: typeof i.hasDamage })));
+    }
+
     if (totalItems > 0) {
       const divergences = allItems.filter(i => i.isChecked && i.checkedQuantity !== null && i.checkedQuantity !== i.expectedQuantity).length;
       divergencePercentage = (divergences / totalItems) * 100;
@@ -257,6 +268,7 @@ export class DatabaseStorage implements IStorage {
         return false;
       }).length;
       damagePercentage = (damaged / totalItems) * 100;
+      console.log('[getDashboardMetrics] Itens com avaria:', damaged, 'de', totalItems, '=', damagePercentage.toFixed(2) + '%');
 
       const partialCounts = allItems.filter(i => i.partialCountReason).length;
       partialCountPercentage = (partialCounts / totalItems) * 100;
