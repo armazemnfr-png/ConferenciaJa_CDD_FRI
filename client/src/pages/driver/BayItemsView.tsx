@@ -70,18 +70,27 @@ export default function BayItemsView() {
     if (!item) return;
 
     const newHasDamage = !item.hasDamage;
+    const payload = {
+      hasDamage: newHasDamage,
+      damageDescription: newHasDamage ? damageNote : null
+    };
+    
+    console.log('[toggleAvaria] Enviando para API:', { id, payload });
+    console.log('[toggleAvaria] hasDamage:', newHasDamage, 'tipo:', typeof newHasDamage);
     
     try {
       const response = await fetch(`/api/wms-items/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          hasDamage: newHasDamage,
-          damageDescription: newHasDamage ? damageNote : null
-        })
+        body: JSON.stringify(payload)
       });
 
+      console.log('[toggleAvaria] Status da resposta:', response.status);
+      
       if (response.ok) {
+        const responseData = await response.json();
+        console.log('[toggleAvaria] Resposta do servidor:', responseData);
+        
         setItens(prev => prev.map(i => 
           i.id === id 
             ? { ...i, hasDamage: newHasDamage, damageDescription: newHasDamage ? damageNote : null }
@@ -93,8 +102,13 @@ export default function BayItemsView() {
           title: newHasDamage ? "Avaria registrada" : "Avaria removida",
           description: newHasDamage ? `Item marcado como avariado` : `Status de avaria removido`
         });
+      } else {
+        const errorData = await response.json();
+        console.error('[toggleAvaria] Erro na resposta:', errorData);
+        toast({ variant: "destructive", title: "Erro", description: errorData.message || "Falha ao registrar avaria" });
       }
     } catch (error) {
+      console.error('[toggleAvaria] Exceção:', error);
       toast({ variant: "destructive", title: "Erro", description: "Falha ao registrar avaria" });
     }
   };

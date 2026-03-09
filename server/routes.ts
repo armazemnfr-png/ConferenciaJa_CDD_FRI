@@ -198,10 +198,18 @@ export async function registerRoutes(
   app.patch(api.wmsItems.update.path, async (req, res) => {
     try {
       const id = Number(req.params.id);
+      console.log('[PATCH /api/wms-items/:id] Corpo da requisição:', req.body);
+      console.log('[PATCH /api/wms-items/:id] hasDamage no corpo:', req.body.hasDamage, 'tipo:', typeof req.body.hasDamage);
+      
       const input = api.wmsItems.update.input.parse(req.body);
+      console.log('[PATCH /api/wms-items/:id] Input após parse:', input);
+      console.log('[PATCH /api/wms-items/:id] hasDamage após parse:', input.hasDamage, 'tipo:', typeof input.hasDamage);
+      
       const updated = await storage.updateWmsItem(id, input);
+      console.log('[PATCH /api/wms-items/:id] Item atualizado:', { id: updated.id, hasDamage: updated.hasDamage });
       res.json(updated);
     } catch (err) {
+      console.error('[PATCH /api/wms-items/:id] Erro:', err);
       res.status(404).json({ message: "Item not found" });
     }
   });

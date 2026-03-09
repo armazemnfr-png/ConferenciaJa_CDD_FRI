@@ -153,10 +153,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateWmsItem(id: number, updates: UpdateWmsItemRequest): Promise<WmsItem> {
+    console.log('[updateWmsItem] ID:', id);
+    console.log('[updateWmsItem] Updates recebido:', updates);
+    console.log('[updateWmsItem] hasDamage no updates:', updates.hasDamage, 'tipo:', typeof updates.hasDamage);
+    
     const [updated] = await db.update(wmsItems)
       .set(updates)
       .where(eq(wmsItems.id, id))
       .returning();
+    
+    console.log('[updateWmsItem] Item retornado do DB:', { id: updated.id, hasDamage: updated.hasDamage, tipo: typeof updated.hasDamage });
     return updated;
   }
 
