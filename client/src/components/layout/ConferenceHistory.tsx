@@ -1,128 +1,81 @@
-import { AdminLayout } from "@/components/layout/AdminLayout";
-import { useDashboardMetrics, useConferences } from "@/hooks/use-conferences";
-import { format } from "date-fns";
+import React from "react";
+import { useConferences } from "@/hooks/use-conferences";
+import { format, differenceInSeconds } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Clock, AlertTriangle, PackageX, FileSpreadsheet, Loader2, BarChart3 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from "recharts";
-// AJUSTADO: Caminho exato para a nova pasta que você criou
-import ConferenceHistory from "@/components/layout/ConferenceHistory";
+import { Loader2, Clock } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-export default function Dashboard() {
-  const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics();
-  const { data: conferences, isLoading: confLoading } = useConferences();
+export default function ConferenceHistory() {
+  const { data: conferences, isLoading } = useConferences();
 
-  if (metricsLoading || confLoading) {
+  // Calcula a duração exata comparando as strings de data do banco
+  const calculateDuration = (start: string | undefined, end: string | undefined) => {
+    if (!start || !end) return "00:00";
+    try {
+      const seconds = differenceInSeconds(new Date(end), new Date(start));
+      if (isNaN(seconds) || seconds < 0) return "00:00";
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    } catch {
+      return "00:00";
+    }
+  };
+
+  if (isLoading) {
     return (
-      <AdminLayout>
-        <div className="h-[60vh] flex items-center justify-center">
-          <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        </div>
-      </AdminLayout>
+      <div className="h-20 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
     );
   }
 
-  const MetricCard = ({ title, value, icon: Icon, description, color }: any) => (
-    <div className="bg-card rounded-2xl p-6 border border-border shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex justify-between items-start">
-        <div className="space-y-2">
-          <p className="text-muted-foreground font-medium text-sm">{title}</p>
-          <p className="text-3xl font-display font-bold text-foreground">{value}</p>
-        </div>
-        <div className={`p-3 rounded-xl ${color}`}>
-          <Icon className="w-6 h-6" />
-        </div>
-      </div>
-      <p className="text-sm mt-4 text-muted-foreground font-medium">{description}</p>
-    </div>
-  );
-
-  const chartData = [
-    { name: "Seg", time: metrics?.averageTimeMinutes || 45 },
-    { name: "Ter", time: (metrics?.averageTimeMinutes || 45) * 1.1 },
-    { name: "Qua", time: (metrics?.averageTimeMinutes || 45) * 0.9 },
-    { name: "Qui", time: (metrics?.averageTimeMinutes || 45) * 1.2 },
-    { name: "Sex", time: (metrics?.averageTimeMinutes || 45) * 0.8 },
-  ];
-
   return (
-    <AdminLayout>
-      <div className="space-y-8">
-
-        <header>
-          <h1 className="text-3xl font-display font-bold text-foreground">Visão Geral</h1>
-          <p className="text-muted-foreground mt-1">Acompanhe os indicadores de performance da equipe.</p>
-        </header>
-
-        {/* Top Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <MetricCard 
-            title="Tempo Médio" 
-            value={`${Math.round(metrics?.averageTimeMinutes || 0)} min`}
-            icon={Clock}
-            color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
-            description="Por conferência de mapa"
-          />
-          <MetricCard 
-            title="Divergências" 
-            value={`${metrics?.divergencePercentage || 0}%`}
-            icon={AlertTriangle}
-            color="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400"
-            description="Contagens parciais vs esperado"
-          />
-          <MetricCard 
-            title="Avarias" 
-            value={`${metrics?.damagePercentage || 0}%`}
-            icon={PackageX}
-            color="bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-            description="Itens reportados com dano"
-          />
-          <MetricCard 
-            title="Total Mapas" 
-            value={metrics?.totalConferences || 0}
-            icon={FileSpreadsheet}
-            color="bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
-            description="Conferências finalizadas hoje"
-          />
-        </div>
-
-        {/* Charts & History Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-          {/* Chart */}
-          <div className="lg:col-span-2 bg-card rounded-2xl border border-border p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-display font-bold text-xl flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-primary" />
-                Tempo de Conferência (Semana)
-              </h2>
-            </div>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))'}} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))'}} />
-                  <RechartsTooltip 
-                    cursor={{fill: 'hsl(var(--muted))'}}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                  />
-                  <Bar dataKey="time" radius={[6, 6, 0, 0]}>
-                    {chartData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill="hsl(var(--primary))" />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Histórico detalhado ocupando a largura total */}
-          <div className="lg:col-span-3">
-             <ConferenceHistory />
-          </div>
-
-        </div>
+    <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+      <div className="p-6 border-b border-border">
+        <h2 className="font-display font-bold text-xl">Histórico de Conferências</h2>
       </div>
-    </AdminLayout>
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/50">
+            <TableHead>Mapa</TableHead>
+            <TableHead>Colaborador</TableHead>
+            <TableHead>Início</TableHead>
+            <TableHead>Fim</TableHead>
+            <TableHead>Tempo de Conferência</TableHead>
+            <TableHead>Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {conferences?.map((conf) => (
+            <TableRow key={conf.id} className="hover:bg-muted/30">
+              <TableCell className="font-bold">#{conf.mapNumber}</TableCell>
+              <TableCell>{conf.driverId || "539"}</TableCell>
+              <TableCell className="font-mono text-xs">
+                {conf.startTime ? format(new Date(conf.startTime), "dd/MM HH:mm:ss", { locale: ptBR }) : "-"}
+              </TableCell>
+              <TableCell className="font-mono text-xs">
+                {conf.endTime ? format(new Date(conf.endTime), "dd/MM HH:mm:ss", { locale: ptBR }) : "-"}
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3 h-3 text-blue-500" />
+                  <span className="font-mono font-bold text-blue-600">
+                    {calculateDuration(conf.startTime, conf.endTime)}
+                  </span>
+                </div>
+              </TableCell>
+              <TableCell>
+                <span className={`px-3 py-1 rounded text-[10px] font-bold uppercase ${
+                  conf.status === 'completed' ? 'bg-[#FBBF24] text-black' : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {conf.status === 'completed' ? 'Finalizado' : 'Em Aberto'}
+                </span>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

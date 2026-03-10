@@ -16,19 +16,13 @@ export async function registerRoutes(
   app.get("/api/driver/check/:registration", async (req, res) => {
     try {
       const { registration } = req.params;
-
-      // 1. Busca o colaborador na base MOT
       const driver = await storage.getDriverByRegistration(registration);
       if (!driver) {
         return res.status(404).json({ 
           message: "Matrícula não encontrada na base de motoristas (MOT)." 
         });
       }
-
-      // 2. Busca o mapa vinculado na fase CARREGADO
       const promaxEntry = await storage.getPromaxByDriver(registration);
-
-      // Retorna os dados consolidados
       res.json({
         success: true,
         nome: driver.name,
@@ -70,8 +64,7 @@ export async function registerRoutes(
     }
   });
 
-  // Conferences
-  // --- CONFERENCES LIST ATUALIZADA COM FILTROS ---
+  // Conferences - Listagem com Filtros
   app.get(api.conferences.list.path, async (req, res) => {
     try {
       const filters = {
@@ -80,7 +73,6 @@ export async function registerRoutes(
         driverId: req.query.driverId as string,
         mapNumber: req.query.mapNumber as string,
       };
-
       const data = await storage.getConferences(filters);
       res.json(data);
     } catch (err) {
@@ -122,20 +114,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/conferences/finish/:id", async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const updated = await storage.updateConference(id, {
-        status: "completed",
-        endTime: new Date()
-      });
-      res.json(updated);
-    } catch (err) {
-      res.status(500).json({ message: "Erro ao finalizar no banco" });
-    }
-  });
-
-  // --- DASHBOARD METRICS ATUALIZADA COM FILTROS ---
+  // Dashboard Metrics
   app.get(api.conferences.dashboard.path, async (req, res) => {
     try {
       const filters = {
@@ -144,7 +123,6 @@ export async function registerRoutes(
         driverId: req.query.driverId as string,
         mapNumber: req.query.mapNumber as string,
       };
-
       const metrics = await storage.getDashboardMetrics(filters);
       res.json(metrics);
     } catch (err) {
@@ -153,38 +131,25 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/conferences/completed", async (_req, res) => {
-    try {
-      const data = await storage.getCompletedConferences();
-      res.json(data);
-    } catch (err) {
-      res.status(500).json({ message: "Erro ao buscar histórico" });
-    }
-  });
-  // --- NOVA ROTA: Finalizar conferência usando o número do Mapa ---
+  // Finalizar Conferência
   app.post("/api/conferences/finish-by-map/:mapNumber", async (req, res) => {
     try {
       const { mapNumber } = req.params;
-
-      // 1. Localiza a conferência pelo número do mapa
       const conference = await storage.getConferenceByMap(mapNumber);
-
       if (!conference) {
-        return res.status(404).json({ message: "Conferência não encontrada para este mapa." });
+        return res.status(404).json({ message: "Conferência não encontrada." });
       }
-
-      // 2. Atualiza o status para finalizado e define a hora do fim
       const updated = await storage.updateConference(conference.id, {
         status: "completed",
         endTime: new Date()
       });
-
       res.json(updated);
     } catch (err) {
       console.error("Erro ao finalizar mapa:", err);
-      res.status(500).json({ message: "Erro interno ao finalizar a conferência." });
+      res.status(500).json({ message: "Erro interno ao finalizar." });
     }
   });
+
   // WMS Items
   app.get('/api/wms-items/list/:mapNumber', async (req, res) => {
     try {
@@ -198,22 +163,15 @@ export async function registerRoutes(
   app.patch(api.wmsItems.update.path, async (req, res) => {
     try {
       const id = Number(req.params.id);
-      console.log('[PATCH /api/wms-items/:id] Corpo da requisição:', req.body);
-      console.log('[PATCH /api/wms-items/:id] hasDamage no corpo:', req.body.hasDamage, 'tipo:', typeof req.body.hasDamage);
-      
       const input = api.wmsItems.update.input.parse(req.body);
-      console.log('[PATCH /api/wms-items/:id] Input após parse:', input);
-      console.log('[PATCH /api/wms-items/:id] hasDamage após parse:', input.hasDamage, 'tipo:', typeof input.hasDamage);
-      
       const updated = await storage.updateWmsItem(id, input);
-      console.log('[PATCH /api/wms-items/:id] Item atualizado:', { id: updated.id, hasDamage: updated.hasDamage });
       res.json(updated);
     } catch (err) {
-      console.error('[PATCH /api/wms-items/:id] Erro:', err);
       res.status(404).json({ message: "Item not found" });
     }
   });
 
+  // Uploads
   app.post('/api/promax/upload', async (req, res) => {
     try {
       await storage.bulkInsertPromaxData(req.body.items);
@@ -242,38 +200,39 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/conferences/:id", async (req, res) => {
+    const id = parseInt(req.params.id);
+    try {
+      await storage.deleteConference(id);
+      res.sendStatus(204);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao deletar mapa" });
+    }
+  });
+  
+  // Busca de itens para o coletor
   app.get('/api/itens/:mapNumber', async (req, res) => {
     try {
       const mapNumber = req.params.mapNumber.trim();
       const driverCode = req.query.driverCode as string;
-
       const rawData = await storage.getWmsItemsByMap(mapNumber);
 
       if (!rawData || rawData.length === 0) {
-        return res.status(404).json({ message: "Mapa não encontrado no banco de dados." });
+        return res.status(404).json({ message: "Mapa não encontrado." });
       }
 
-      let conferenceId: number | undefined;
-      try {
-        let conference = await storage.getConferenceByMap(mapNumber);
-        if (!conference) {
-          conference = await storage.createConference({
-            mapNumber,
-            driverId: driverCode || "N/A",
-            status: "in_progress",
-            startTime: new Date()
-          });
-        } else if (driverCode && (conference.driverId === "N/A" || !conference.driverId)) {
-          await storage.updateConference(conference.id, { driverId: driverCode });
-        }
-        conferenceId = conference.id;
-      } catch (e) {
-        console.error("Aviso: Falha ao registrar conferência.");
+      let conference = await storage.getConferenceByMap(mapNumber);
+      if (!conference) {
+        conference = await storage.createConference({
+          mapNumber,
+          driverId: driverCode || "N/A",
+          status: "in_progress",
+          startTime: new Date()
+        });
       }
 
       const formattedData = rawData.map((item: any) => ({
         id: item.id,
-        conferenceId: conferenceId, 
         item: (item.description || "PRODUTO SEM NOME").toUpperCase(),
         qtd: item.expectedQuantity ?? 0,
         codigoDoItem: item.sku || "N/A",
@@ -285,7 +244,6 @@ export async function registerRoutes(
 
       res.json(formattedData);
     } catch (err) {
-      console.error("Erro interno na rota de itens:", err);
       res.status(500).json({ message: "Erro no servidor ao carregar itens." });
     }
   });

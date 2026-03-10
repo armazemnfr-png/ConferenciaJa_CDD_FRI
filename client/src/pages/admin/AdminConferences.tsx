@@ -1,122 +1,217 @@
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useConferences } from "@/hooks/use-conferences";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, differenceInMinutes } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Search, AlertTriangle, PackageX, CheckCircle2, Clock } from "lucide-react";
+import { Search, AlertTriangle, PackageX, CheckCircle2, Clock, Filter, Trash2 } from "lucide-react"; 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ConferencesHistory() {
-  const [filters, setFilters] = useState({
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Estado dos campos
+  const [search, setSearch] = useState("");
+  const [divFilter, setDivFilter] = useState("all");
+  const [dmgFilter, setDmgFilter] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  // Estado dos filtros ATIVOS
+  const [appliedFilters, setAppliedFilters] = useState({
     search: "",
-    hasDivergence: "all",
-    hasDamage: "all"
+    div: "all",
+    dmg: "all",
+    start: "",
+    end: ""
   });
 
-  const { data: conferences, isLoading } = useConferences();
+  const { data: conferences } = useConferences();
 
-  const filteredData = conferences?.filter(conf => {
-    const matchesSearch = conf.mapNumber.includes(filters.search) || 
-                         (conf.driverId && conf.driverId.includes(filters.search));
-
-    // Aqui simulamos a lógica que vamos refinar no banco
-    const matchesDivergence = filters.hasDivergence === "all" ? true : 
-                             filters.hasDivergence === "yes" ? conf.status === 'completed' : false; 
-
-    return matchesSearch;
+  // Lógica de Exclusão
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/conferences/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conferences"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard-metrics"] });
+      toast({
+        title: "Sucesso",
+        description: "Mapa removido do histórico.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir o mapa.",
+        variant: "destructive",
+      });
+    }
   });
+
+  const handleDelete = (id: number, mapNumber: string) => {
+    if (confirm(`Deseja realmente excluir o Mapa #${mapNumber}? Isso limpará os dados do Dashboard.`)) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const handleFilter = () => {
+    setAppliedFilters({
+      search: search,
+      div: divFilter,
+      dmg: dmgFilter,
+      start: startDate,
+      end: endDate
+    });
+  };
+
+  const filteredData = useMemo(() => {
+    if (!conferences) return [];
+
+    return conferences.filter(conf => {
+      const matchesSearch = conf.mapNumber.toLowerCase().includes(appliedFilters.search.toLowerCase()) || 
+                           (conf.driverId && conf.driverId.toLowerCase().includes(appliedFilters.search.toLowerCase()));
+
+      const hasDiv = conf.hasDivergence === true || conf.hasDivergence === 1;
+      const matchesDiv = appliedFilters.div === "all" ? true : 
+                        appliedFilters.div === "yes" ? hasDiv : !hasDiv;
+
+      const hasDmg = conf.hasDamage === true || conf.hasDamage === 1;
+      const matchesDmg = appliedFilters.dmg === "all" ? true : 
+                        appliedFilters.dmg === "yes" ? hasDmg : !hasDmg;
+
+      const confDate = conf.startTime ? new Date(conf.startTime).toISOString().split('T')[0] : null;
+      const matchesStart = !appliedFilters.start || (confDate && confDate >= appliedFilters.start);
+      const matchesEnd = !appliedFilters.end || (confDate && confDate <= appliedFilters.end);
+
+      return matchesSearch && matchesDiv && matchesDmg && matchesStart && matchesEnd;
+    });
+  }, [conferences, appliedFilters]);
 
   return (
     <AdminLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-display font-bold">Histórico de Conferências</h1>
-          <p className="text-muted-foreground">Rastreabilidade completa de TML e ocorrências.</p>
+          <h1 className="text-3xl font-display font-bold text-slate-900">Histórico de Conferências</h1>
+          <p className="text-slate-500">Consulte conferências finalizadas e ocorrências.</p>
         </div>
 
-        {/* Barra de Filtros Rápida */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-card p-4 rounded-xl border border-border">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Mapa ou Matrícula..." 
-              className="pl-9"
-              value={filters.search}
-              onChange={(e) => setFilters({...filters, search: e.target.value})}
-            />
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm items-end">
+          <div className="flex flex-col gap-1 lg:col-span-2">
+            <label className="text-[11px] uppercase font-bold text-slate-400 ml-1">Mapa ou Matrícula</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+              <Input 
+                placeholder="Ex: 12345..." 
+                className="pl-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
           </div>
 
-          <Select onValueChange={(v) => setFilters({...filters, hasDivergence: v})}>
-            <SelectTrigger>
-              <SelectValue placeholder="Divergência?" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="yes">Com Divergência</SelectItem>
-              <SelectItem value="no">Sem Divergência</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] uppercase font-bold text-slate-400 ml-1">Início</label>
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
 
-          <Select onValueChange={(v) => setFilters({...filters, hasDamage: v})}>
-            <SelectTrigger>
-              <SelectValue placeholder="Avarias?" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="yes">Com Avaria</SelectItem>
-              <SelectItem value="no">Sem Avaria</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] uppercase font-bold text-slate-400 ml-1">Fim</label>
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] uppercase font-bold text-slate-400 ml-1">Divergência</label>
+            <Select value={divFilter} onValueChange={setDivFilter}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                <SelectItem value="yes">Com Erro</SelectItem>
+                <SelectItem value="no">Sem Erro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] uppercase font-bold text-slate-400 ml-1">Avaria</label>
+            <Select value={dmgFilter} onValueChange={setDmgFilter}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                <SelectItem value="yes">Com Avaria</SelectItem>
+                <SelectItem value="no">Sem Avaria</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button onClick={handleFilter} className="w-full gap-2 font-bold bg-blue-600 hover:bg-blue-700 text-white">
+            <Filter className="w-4 h-4" />
+            Filtrar
+          </Button>
         </div>
 
-        <div className="border rounded-xl bg-card overflow-hidden">
+        <div className="border rounded-xl bg-white shadow-sm overflow-hidden">
           <Table>
-            <TableHeader className="bg-muted/50">
+            <TableHeader className="bg-slate-50">
               <TableRow>
-                <TableHead>Mapa</TableHead>
+                <TableHead className="w-[100px]">Mapa</TableHead>
                 <TableHead>Colaborador</TableHead>
-                <TableHead>Início</TableHead>
-                <TableHead>TML (Min)</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Alertas</TableHead>
+                <TableHead>Data Início</TableHead>
+                <TableHead>Duração</TableHead>
+                <TableHead className="text-center">Ocorrências</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredData?.map((conf) => {
-                const duration = conf.endTime && conf.startTime 
-                  ? differenceInMinutes(new Date(conf.endTime), new Date(conf.startTime)) 
-                  : "-";
+              {filteredData.map((conf) => {
+                const hasDiv = conf.hasDivergence === true || conf.hasDivergence === 1;
+                const hasDmg = conf.hasDamage === true || conf.hasDamage === 1;
+                const isClean = conf.status === 'completed' && !hasDiv && !hasDmg;
+
+                const startTime = conf.startTime ? new Date(conf.startTime) : null;
+                const endTime = conf.endTime ? new Date(conf.endTime) : null;
+                let durationText = "-";
+                if (startTime && endTime) {
+                  const diff = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
+                  durationText = `${Math.floor(diff/60)}m ${diff%60}s`;
+                }
 
                 return (
                   <TableRow key={conf.id}>
                     <TableCell className="font-bold">#{conf.mapNumber}</TableCell>
-                    <TableCell className="text-sm">{conf.driverId || "N/A"}</TableCell>
-                    <TableCell className="text-sm">
-                      {conf.startTime ? format(new Date(conf.startTime), "dd/MM HH:mm", { locale: ptBR }) : "-"}
+                    <TableCell className="font-medium text-slate-700">{conf.driverId || "---"}</TableCell>
+                    <TableCell className="text-sm text-slate-500">
+                      {conf.startTime ? format(new Date(conf.startTime), "dd/MM/yy HH:mm", { locale: ptBR }) : "-"}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-3 h-3 text-muted-foreground" />
-                        <span className={Number(duration) > 20 ? "text-orange-600 font-bold" : ""}>
-                          {duration} min
-                        </span>
+                      <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                        <Clock className="w-3.5 h-3.5" />
+                        {durationText}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={conf.status === 'completed' ? "default" : "secondary"}>
-                        {conf.status === 'completed' ? 'Finalizado' : 'Em curso'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        {/* Mock de ícones - no próximo passo vinculamos ao banco real */}
-                        <AlertTriangle className="w-4 h-4 text-orange-400 opacity-20" title="Divergência" />
-                        <PackageX className="w-4 h-4 text-red-400 opacity-20" title="Avaria" />
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      <div className="flex justify-center gap-6">
+                        <AlertTriangle className={`w-5 h-5 ${hasDiv ? "text-orange-500" : "opacity-10"}`} />
+                        <PackageX className={`w-5 h-5 ${hasDmg ? "text-red-500" : "opacity-10"}`} />
+                        <CheckCircle2 className={`w-5 h-5 ${isClean ? "text-green-500" : "opacity-10"}`} />
                       </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleDelete(conf.id, conf.mapNumber)}
+                        className="text-slate-300 hover:text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );

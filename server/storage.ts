@@ -18,45 +18,35 @@ import {
   type UpdateWmsItemRequest,
   type DashboardMetrics
 } from "@shared/schema";
-import { eq, sql, and, desc, inArray } from "drizzle-orm";
+import { eq, sql, and, desc } from "drizzle-orm";
 
-// Estendemos o tipo para que o Frontend reconheça as novas propriedades
-export type ConferenceWithMetrics = Conference & {
-  hasDivergence?: boolean;
-  hasDamage?: boolean;
-};
+export type ConferenceWithMetrics = Conference;
 
 export interface IStorage {
-  // Matinals
   getMatinals(): Promise<Matinal[]>;
   createMatinal(matinal: InsertMatinal): Promise<Matinal>;
-
-  // Conferences
-  getConferences(filters?: any): Promise<ConferenceWithMetrics[]>;
+  getConferences(filters?: any): Promise<Conference[]>;
   getConference(id: number): Promise<Conference | undefined>;
   getConferenceByMap(mapNumber: string): Promise<Conference | undefined>;
   createConference(conference: InsertConference): Promise<Conference>;
   updateConference(id: number, updates: UpdateConferenceRequest): Promise<Conference>;
-
-  // WMS Items
   getWmsItemsByMap(mapNumber: string): Promise<WmsItem[]>;
   getWmsItem(id: number): Promise<WmsItem | undefined>;
   updateWmsItem(id: number, updates: UpdateWmsItemRequest): Promise<WmsItem>;
   bulkInsertWmsItems(items: InsertWmsItem[]): Promise<void>;
-
-  // Promax Data
   bulkInsertPromaxData(items: any[]): Promise<void>;
   getPromaxByDriver(registration: string): Promise<PromaxData | undefined>;
-
-  // Driver Base
   bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void>;
   getDriverByRegistration(registration: string): Promise<DriverBase | undefined>;
-
-  // Dashboard Metrics
   getDashboardMetrics(filters?: any): Promise<DashboardMetrics>;
+  deleteConference(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
+  async deleteConference(id: number): Promise<void> {
+    await db.delete(conferences).where(eq(conferences.id, id));
+  }
+
   async getMatinals(): Promise<Matinal[]> {
     return await db.select().from(matinals);
   }
@@ -66,45 +56,25 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  // REVISADO: Agora busca os itens de cada conferência para marcar se houve erro
-  async getConferences(filters?: any): Promise<ConferenceWithMetrics[]> {
+  async getConferences(filters?: any): Promise<Conference[]> {
     const conditions = [];
+    if (filters?.driverId) conditions.push(eq(conferences.driverId, filters.driverId));
+    if (filters?.mapNumber) conditions.push(sql`upper(trim(${conferences.mapNumber})) = ${filters.mapNumber.trim().toUpperCase()}`);
 
-    if (filters?.driverId) {
-      conditions.push(eq(conferences.driverId, filters.driverId));
-    }
-
-    if (filters?.mapNumber) {
-      conditions.push(sql`upper(trim(${conferences.mapNumber})) = ${filters.mapNumber.trim().toUpperCase()}`);
-    }
-
-    // Melhorado: Usa início e fim do dia para evitar problemas com fuso horário
     if (filters?.startDate) {
       const startDate = new Date(filters.startDate);
       startDate.setHours(0, 0, 0, 0);
       conditions.push(sql`${conferences.startTime} >= ${startDate}`);
     }
-
     if (filters?.endDate) {
       const endDate = new Date(filters.endDate);
       endDate.setHours(23, 59, 59, 999);
       conditions.push(sql`${conferences.startTime} <= ${endDate}`);
     }
 
-    const results = conditions.length > 0 
-      ? await db.select().from(conferences).where(and(...conditions)).orderBy(desc(conferences.startTime))
-      : await db.select().from(conferences).orderBy(desc(conferences.startTime));
-
-    // Para cada conferência, verificamos se existem itens com divergência ou avaria no WMS
-    return await Promise.all(results.map(async (conf) => {
-      const items = await db.select().from(wmsItems).where(eq(wmsItems.mapNumber, conf.mapNumber));
-
-      return {
-        ...conf,
-        hasDivergence: items.some(i => i.isChecked && i.checkedQuantity !== null && i.checkedQuantity !== i.expectedQuantity),
-        hasDamage: items.some(i => i.hasDamage === true)
-      };
-    }));
+    return await db.select().from(conferences)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(conferences.startTime));
   }
 
   async getConference(id: number): Promise<Conference | undefined> {
@@ -125,17 +95,27 @@ export class DatabaseStorage implements IStorage {
   async createConference(conference: InsertConference): Promise<Conference> {
     const [created] = await db.insert(conferences).values({
       ...conference,
+      startTime: new Date(),
       mapNumber: conference.mapNumber.trim().toUpperCase()
     }).returning();
     return created;
   }
 
   async updateConference(id: number, updates: UpdateConferenceRequest): Promise<Conference> {
+    let finalUpdates = { ...updates };
+
+    if (updates.status === 'completed') {
+      const currentConf = await this.getConference(id);
+      if (currentConf) {
+        const items = await this.getWmsItemsByMap(currentConf.mapNumber);
+        finalUpdates.hasDivergence = items.some(i => i.isChecked && i.checkedQuantity !== null && i.checkedQuantity !== i.expectedQuantity);
+        finalUpdates.hasDamage = items.some(i => i.hasDamage === true);
+        finalUpdates.endTime = new Date();
+      }
+    }
+
     const [updated] = await db.update(conferences)
-      .set({
-        ...updates,
-        endTime: updates.status === 'completed' ? new Date() : undefined
-      })
+      .set(finalUpdates)
       .where(eq(conferences.id, id))
       .returning();
     return updated;
@@ -153,30 +133,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateWmsItem(id: number, updates: UpdateWmsItemRequest): Promise<WmsItem> {
-    console.log('[updateWmsItem] ID:', id);
-    console.log('[updateWmsItem] Updates recebido:', updates);
-    console.log('[updateWmsItem] hasDamage no updates:', updates.hasDamage, 'tipo:', typeof updates.hasDamage);
-    
     const [updated] = await db.update(wmsItems)
       .set(updates)
       .where(eq(wmsItems.id, id))
       .returning();
-    
-    console.log('[updateWmsItem] Item retornado do DB:', { id: updated.id, hasDamage: updated.hasDamage, tipo: typeof updated.hasDamage });
     return updated;
   }
 
   async bulkInsertWmsItems(items: InsertWmsItem[]): Promise<void> {
     if (items.length === 0) return;
-    try {
-      await db.execute(sql`TRUNCATE TABLE wms_items RESTART IDENTITY CASCADE`);
-      const chunkSize = 200;
-      for (let i = 0; i < items.length; i += chunkSize) {
-        await db.insert(wmsItems).values(items.slice(i, i + chunkSize));
-      }
-    } catch (error) {
-      console.error("❌ ERRO NO UPLOAD WMS:", error);
-      throw error;
+    await db.execute(sql`TRUNCATE TABLE wms_items RESTART IDENTITY CASCADE`);
+    const chunkSize = 200;
+    for (let i = 0; i < items.length; i += chunkSize) {
+      await db.insert(wmsItems).values(items.slice(i, i + chunkSize));
     }
   }
 
@@ -197,11 +166,6 @@ export class DatabaseStorage implements IStorage {
       const matricula = String(item.motorista || item.Motorista || "").trim();
       const mapa = String(item.mapa || item.Mapa || "").trim();
       if (!mapa || !matricula) continue;
-
-      const [driver] = await db.select().from(driverBase).where(eq(driverBase.registration, matricula));
-      const driverName = driver ? driver.name : `Matrícula: ${matricula}`;
-
-      await db.update(wmsItems).set({ plate: driverName }).where(eq(wmsItems.mapNumber, mapa));
       await db.insert(promaxData).values({
         mapa: mapa,
         motorista: matricula,
@@ -228,64 +192,41 @@ export class DatabaseStorage implements IStorage {
 
   async getDashboardMetrics(filters?: any): Promise<DashboardMetrics> {
     const filteredConferences = await this.getConferences(filters);
-    const totalConferences = filteredConferences.length;
+    const completed = filteredConferences.filter(c => c.status === "completed");
 
-    let averageTimeMinutes = 0;
-    const completed = filteredConferences.filter(c => c.status === "completed" && c.startTime && c.endTime);
+    let totalItems = 0;
+    let totalDivergences = 0;
+    let totalDamages = 0;
+    let totalMinutes = 0;
+    let validTimeCount = 0;
 
-    if (completed.length > 0) {
-      const totalTimeMs = completed.reduce((acc, c) => {
-        return acc + (new Date(c.endTime!).getTime() - new Date(c.startTime!).getTime());
-      }, 0);
-      averageTimeMinutes = (totalTimeMs / completed.length) / 60000;
+    for (const conf of completed) {
+      const items = await this.getWmsItemsByMap(conf.mapNumber);
+      totalItems += items.length;
+      totalDivergences += items.filter(i => i.isChecked && i.checkedQuantity !== null && i.checkedQuantity !== i.expectedQuantity).length;
+      totalDamages += items.filter(i => i.hasDamage).length;
+
+      if (conf.startTime && conf.endTime) {
+        const start = new Date(conf.startTime).getTime();
+        const end = new Date(conf.endTime).getTime();
+        const diff = (end - start) / 60000;
+
+        if (diff > 0.1 && diff < 360) {
+          totalMinutes += diff;
+          validTimeCount++;
+        }
+      }
     }
 
-    let allItems: WmsItem[] = [];
-    if (filters?.mapNumber) {
-      allItems = await this.getWmsItemsByMap(filters.mapNumber);
-    } else if (totalConferences > 0) {
-      const mapNumbers = filteredConferences.map(c => c.mapNumber);
-      allItems = await db.select().from(wmsItems).where(inArray(wmsItems.mapNumber, mapNumbers));
-    } else {
-      allItems = await db.select().from(wmsItems);
-    }
-
-    const totalItems = allItems.length;
-    let divergencePercentage = 0, damagePercentage = 0, partialCountPercentage = 0;
-
-    // DEBUG: Log para diagnosticar problema das avarias
-    console.log('[getDashboardMetrics] Filtros:', filters);
-    console.log('[getDashboardMetrics] Total de conferências:', totalConferences);
-    console.log('[getDashboardMetrics] Total de itens no banco:', totalItems);
-    if (totalItems > 0 && totalItems < 100) {
-      console.log('[getDashboardMetrics] Amostra de itens:', allItems.slice(0, 5).map(i => ({ id: i.id, mapNumber: i.mapNumber, hasDamage: i.hasDamage, tipo: typeof i.hasDamage })));
-    }
-
-    if (totalItems > 0) {
-      const divergences = allItems.filter(i => i.isChecked && i.checkedQuantity !== null && i.checkedQuantity !== i.expectedQuantity).length;
-      divergencePercentage = (divergences / totalItems) * 100;
-
-      // Aceita booleano, número (1) ou string ('true') para hasDamage
-      const damaged = allItems.filter(i => {
-        const hasDamageValue = i.hasDamage;
-        if (typeof hasDamageValue === 'boolean') return hasDamageValue;
-        if (typeof hasDamageValue === 'number') return hasDamageValue === 1;
-        if (typeof hasDamageValue === 'string') return hasDamageValue.toLowerCase() === 'true';
-        return false;
-      }).length;
-      damagePercentage = (damaged / totalItems) * 100;
-      console.log('[getDashboardMetrics] Itens com avaria:', damaged, 'de', totalItems, '=', damagePercentage.toFixed(2) + '%');
-
-      const partialCounts = allItems.filter(i => i.partialCountReason).length;
-      partialCountPercentage = (partialCounts / totalItems) * 100;
-    }
+    const averageTimeMinutes = validTimeCount > 0 ? totalMinutes / validTimeCount : 0;
+    const denominator = totalItems || 1;
 
     return {
-      totalConferences,
-      averageTimeMinutes: Math.round(averageTimeMinutes),
-      divergencePercentage: Math.round(divergencePercentage),
-      damagePercentage: Math.round(damagePercentage),
-      partialCountPercentage: Math.round(partialCountPercentage)
+      totalConferences: filteredConferences.length,
+      averageTimeMinutes,
+      divergencePercentage: Number(((totalDivergences / denominator) * 100).toFixed(1)),
+      damagePercentage: Number(((totalDamages / denominator) * 100).toFixed(1)),
+      partialCountPercentage: 0
     };
   }
 }

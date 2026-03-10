@@ -2,8 +2,6 @@ import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// App specific tables
-
 export const conferences = pgTable("conferences", {
   id: serial("id").primaryKey(),
   mapNumber: text("map_number").notNull(),
@@ -12,12 +10,15 @@ export const conferences = pgTable("conferences", {
   startTime: timestamp("start_time"),
   endTime: timestamp("end_time"),
   createdAt: timestamp("created_at").defaultNow(),
+  // NOVAS COLUNAS PARA PERSISTÊNCIA:
+  hasDivergence: boolean("has_divergence").default(false),
+  hasDamage: boolean("has_damage").default(false),
 });
 
 export const matinals = pgTable("matinals", {
   id: serial("id").primaryKey(),
-  roomName: text("room_name").notNull(), // Corona, Stella
-  fixedStartTime: text("fixed_start_time").notNull(), // 07:30, 06:45
+  roomName: text("room_name").notNull(),
+  fixedStartTime: text("fixed_start_time").notNull(),
   actualEndTime: timestamp("actual_end_time").defaultNow(),
   durationMinutes: integer("duration_minutes").notNull(),
   date: timestamp("date").defaultNow(),
@@ -83,12 +84,12 @@ export const driverBase = pgTable("driver_base", {
   room: text("room").notNull(),
 });
 
+export const insertConferenceSchema = createInsertSchema(conferences).omit({ id: true, createdAt: true });
 export const insertWmsItemSchema = createInsertSchema(wmsItems).omit({ id: true });
 export const insertPromaxDataSchema = createInsertSchema(promaxData).omit({ id: true });
 export const insertDriverBaseSchema = createInsertSchema(driverBase).omit({ id: true });
 export const insertMatinalSchema = createInsertSchema(matinals).omit({ id: true, date: true });
 
-// Update schema - explicitly allows partial updates with hasDamage
 export const updateWmsItemSchema = z.object({
   isChecked: z.boolean().optional(),
   checkedQuantity: z.number().nullable().optional(),
@@ -97,20 +98,17 @@ export const updateWmsItemSchema = z.object({
   partialCountReason: z.string().nullable().optional(),
 });
 
-// Types
+export type Conference = typeof conferences.$inferSelect;
+export type InsertConference = z.infer<typeof insertConferenceSchema>;
 export type WmsItem = typeof wmsItems.$inferSelect;
 export type InsertWmsItem = z.infer<typeof insertWmsItemSchema>;
-
 export type PromaxData = typeof promaxData.$inferSelect;
 export type InsertPromaxData = z.infer<typeof insertPromaxDataSchema>;
-
 export type DriverBase = typeof driverBase.$inferSelect;
 export type InsertDriverBase = z.infer<typeof insertDriverBaseSchema>;
-
 export type Matinal = typeof matinals.$inferSelect;
 export type InsertMatinal = z.infer<typeof insertMatinalSchema>;
 
-// Requests
 export type CreateConferenceRequest = {
   driverId: string;
   mapNumber: string;
@@ -119,7 +117,6 @@ export type CreateConferenceRequest = {
 export type UpdateConferenceRequest = Partial<InsertConference>;
 export type UpdateWmsItemRequest = z.infer<typeof updateWmsItemSchema>;
 
-// Responses
 export interface DashboardMetrics {
   totalConferences: number;
   averageTimeMinutes: number;
