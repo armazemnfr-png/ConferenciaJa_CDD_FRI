@@ -1,9 +1,24 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { registerAuthRoutes } from "./replit_integrations/auth/routes";
+
+// Extend express-session to include isAdmin flag
+declare module "express-session" {
+  interface SessionData {
+    isAdmin?: boolean;
+  }
+}
+
+// Middleware que bloqueia a rota se não houver sessão de admin
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (req.session?.isAdmin === true) {
+    return next();
+  }
+  return res.status(401).json({ message: "Acesso restrito. Faça login como administrador." });
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -11,6 +26,37 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   registerAuthRoutes(app);
+
+  // ─── ADMIN AUTH ────────────────────────────────────────────────────────────
+
+  // Verifica se já está logado como admin
+  app.get("/api/admin/me", (req, res) => {
+    if (req.session?.isAdmin === true) {
+      return res.json({ authenticated: true });
+    }
+    return res.status(401).json({ authenticated: false });
+  });
+
+  // Login do administrador
+  app.post("/api/admin/login", (req, res) => {
+    const { username, password } = req.body || {};
+    const ADMIN_USER = process.env.ADMIN_USER || "admin";
+    const ADMIN_PASS = process.env.ADMIN_PASS || "confereja2024";
+
+    if (username === ADMIN_USER && password === ADMIN_PASS) {
+      req.session.isAdmin = true;
+      return res.json({ success: true });
+    }
+    return res.status(401).json({ message: "Usuário ou senha incorretos." });
+  });
+
+  // Logout do administrador
+  app.post("/api/admin/logout", (req, res) => {
+    req.session.isAdmin = false;
+    res.json({ success: true });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
 
   // --- ROTA DE VALIDAÇÃO DE MOTORISTA (LOGIN INTELIGENTE) ---
   app.get("/api/driver/check/:registration", async (req, res) => {
@@ -172,7 +218,7 @@ export async function registerRoutes(
   });
 
   // Uploads
-  app.post('/api/promax/upload', async (req, res) => {
+  app.post('/api/promax/upload', requireAdmin, async (req, res) => {
     try {
       await storage.bulkInsertPromaxData(req.body.items);
       res.status(201).json({ success: true });
@@ -181,7 +227,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post('/api/motoristas/upload', async (req, res) => {
+  app.post('/api/motoristas/upload', requireAdmin, async (req, res) => {
     try {
       await storage.bulkInsertDriverBase(req.body.items);
       res.status(201).json({ success: true });
@@ -190,7 +236,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post(api.wmsItems.upload.path, async (req, res) => {
+  app.post(api.wmsItems.upload.path, requireAdmin, async (req, res) => {
     try {
       const input = api.wmsItems.upload.input.parse(req.body);
       await storage.bulkInsertWmsItems(input.items);
