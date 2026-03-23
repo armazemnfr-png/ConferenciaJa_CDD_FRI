@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Upload, LogOut, Truck, Play } from "lucide-react";
-import { useAdminAuth } from "@/hooks/use-admin-auth";
+import { LayoutDashboard, Upload, Users, LogOut, Truck, Play } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -9,7 +9,7 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const [location] = useLocation();
-  const { logout } = useAdminAuth();
+  const { logout, user } = useAuth();
 
   const navigation = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -49,16 +49,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         <div className="p-4 border-t border-border">
           <div className="flex items-center gap-3 px-3 py-2 mb-2">
             <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center text-accent font-bold">
-              A
+              {user?.firstName?.charAt(0) || "A"}
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-medium truncate">Admin</p>
+              <p className="text-sm font-medium truncate">{user?.firstName} {user?.lastName}</p>
               <p className="text-xs text-muted-foreground truncate">Administrador</p>
             </div>
           </div>
           <button
             onClick={() => logout()}
-            data-testid="button-admin-logout"
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
           >
             <LogOut className="h-4 w-4" />

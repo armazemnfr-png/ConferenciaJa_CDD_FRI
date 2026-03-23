@@ -44,7 +44,7 @@ export default function Landing() {
           </Link>
 
           <Link 
-            href="/admin/login" 
+            href="/admin" 
             className="w-full group flex items-center justify-between bg-card border-2 border-border text-foreground px-6 py-4 rounded-2xl font-bold text-lg hover:border-primary/50 hover:bg-muted/50 hover:-translate-y-1 transition-all duration-300"
           >
             <div className="flex items-center gap-3">
