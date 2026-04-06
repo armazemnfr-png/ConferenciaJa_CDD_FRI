@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "--yXyQWTHBJu88ATanGDb"
+uri = "file://resgate_auditoria.csv"
+type = "table"
+title = "resgate_auditoria.csv — 27 conferências exportadas"
