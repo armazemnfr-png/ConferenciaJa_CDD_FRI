@@ -6,3 +6,9 @@ id = "--yXyQWTHBJu88ATanGDb"
 uri = "file://resgate_auditoria.csv"
 type = "table"
 title = "resgate_auditoria.csv — 27 conferências exportadas"
+
+[[outputs]]
+id = "xTNsha9aCPyHKTGMeDT37"
+uri = "file://historico_motoristas_19mar_em_diante.csv"
+type = "table"
+title = "Histórico completo — 177 conferências (19/03 a 02/04/2026)"
