@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Clock, CheckCircle, Timer } from "lucide-react";
+import { Clock, CheckCircle, Timer, ArrowLeft } from "lucide-react";
+import { Link } from "wouter";
 
 const ROOMS = [
   { id: "corona", name: "Sala 1: Corona", fixedStart: "07:30" },
@@ -58,6 +59,14 @@ export default function MatinalPlay() {
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
       <div>
+        <Link
+          href="/"
+          data-testid="link-matinal-back"
+          className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors group mb-4"
+        >
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+          Voltar ao Início
+        </Link>
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <Timer className="text-blue-600" /> MatinalPlay
         </h1>
