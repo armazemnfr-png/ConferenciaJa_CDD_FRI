@@ -110,7 +110,7 @@ const ConferenceBays = () => {
     setItems(prev => prev.map(item => {
       if (item.id === id) {
         const newAvaria = !item.temAvaria;
-        saveToDatabase(id, { temAvaria: newAvaria });
+        saveToDatabase(id, { hasDamage: newAvaria });
         return { ...item, temAvaria: newAvaria };
       }
       return item;

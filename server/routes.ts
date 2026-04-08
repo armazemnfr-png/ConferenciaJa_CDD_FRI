@@ -272,13 +272,17 @@ export async function registerRoutes(
       }
 
       const formattedData = rawData.map((item: any) => ({
-        id: item.id,        item: (item.description || "PRODUTO SEM NOME").toUpperCase(),
+        id: item.id,
+        item: (item.description || "PRODUTO SEM NOME").toUpperCase(),
         qtd: item.expectedQuantity ?? 0,
         codigoDoItem: item.sku || "N/A",
         conferido: !!item.isChecked,
+        isChecked: !!item.isChecked,
         bay_number: item.bayNumber,
         sequence: item.sequence,
-        unitOfMeasure: item.unitOfMeasure
+        unitOfMeasure: item.unitOfMeasure,
+        qtd_contada: item.checkedQuantity ?? undefined,
+        temAvaria: !!item.hasDamage,
       }));
 
       res.json(formattedData);
