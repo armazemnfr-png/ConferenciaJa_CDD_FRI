@@ -42,11 +42,67 @@ export interface IStorage {
   getDashboardMetrics(filters?: any): Promise<DashboardMetrics>;
   getMetricsByRoom(): Promise<{ room: string; avgMinutes: number; count: number }[]>;
   getDriversWithoutRoom(): Promise<{ driverId: string; maps: string[]; count: number }[]>;
+  getDriverRanking(): Promise<{ room: string; top: any[]; bottom: any[] }[]>;
   deleteConference(id: number): Promise<void>;
   deleteMatinal(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
+  async getDriverRanking(): Promise<{ room: string; top: any[]; bottom: any[] }[]> {
+    // Todos os motoristas com sala cadastrada
+    const allDrivers = await db.select().from(driverBase);
+    const driverMap = new Map<string, { name: string; room: string }>();
+    allDrivers.forEach(d => driverMap.set(d.registration.trim(), { name: d.name, room: d.room }));
+
+    // Conferências finalizadas com tempo válido
+    const allConfs = await db.select().from(conferences)
+      .where(eq(conferences.status, "completed"));
+
+    // Calcular duração por motorista
+    const driverStats = new Map<string, { totalMin: number; count: number }>();
+    for (const conf of allConfs) {
+      if (!conf.startTime || !conf.endTime) continue;
+      const durationMin = (new Date(conf.endTime).getTime() - new Date(conf.startTime).getTime()) / 60000;
+      if (durationMin <= 0 || durationMin > 600) continue;
+      const reg = (conf.driverId || "").trim();
+      if (!reg) continue;
+      const cur = driverStats.get(reg) ?? { totalMin: 0, count: 0 };
+      driverStats.set(reg, { totalMin: cur.totalMin + durationMin, count: cur.count + 1 });
+    }
+
+    // Montar lista de drivers com sala e métricas
+    const entries: { registration: string; name: string; room: string; avgMinutes: number; count: number }[] = [];
+    for (const [reg, stats] of driverStats) {
+      const info = driverMap.get(reg);
+      if (!info || !info.room) continue;
+      entries.push({
+        registration: reg,
+        name: info.name,
+        room: info.room,
+        avgMinutes: stats.totalMin / stats.count,
+        count: stats.count,
+      });
+    }
+
+    // Agrupar por sala
+    const byRoom = new Map<string, typeof entries>();
+    for (const entry of entries) {
+      const list = byRoom.get(entry.room) ?? [];
+      list.push(entry);
+      byRoom.set(entry.room, list);
+    }
+
+    const result: { room: string; top: any[]; bottom: any[] }[] = [];
+    for (const [room, list] of byRoom) {
+      const sorted = [...list].sort((a, b) => a.avgMinutes - b.avgMinutes);
+      const top = sorted.slice(0, 3);
+      const bottom = sorted.length > 3 ? sorted.slice(-3).reverse() : [];
+      result.push({ room, top, bottom });
+    }
+
+    return result.sort((a, b) => a.room.localeCompare(b.room));
+  }
+
   async deleteConference(id: number): Promise<void> {
     await db.delete(conferences).where(eq(conferences.id, id));
   }

@@ -48,6 +48,25 @@ export function useDashboardMetrics(filters?: FilterParams) {
   });
 }
 
+type DriverRankEntry = {
+  registration: string;
+  name: string;
+  room: string;
+  avgMinutes: number;
+  count: number;
+};
+
+export function useDriverRanking() {
+  return useQuery<{ room: string; top: DriverRankEntry[]; bottom: DriverRankEntry[] }[]>({
+    queryKey: ["/api/dashboard/ranking"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/ranking", { credentials: "include" });
+      if (!res.ok) throw new Error("Erro ao buscar ranking");
+      return res.json();
+    },
+  });
+}
+
 export function useDrivers() {
   return useQuery<{ id: number; registration: string; name: string; room: string }[]>({
     queryKey: ["/api/drivers"],

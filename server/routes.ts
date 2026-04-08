@@ -62,6 +62,16 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/dashboard/ranking", async (req, res) => {
+    try {
+      const data = await storage.getDriverRanking();
+      res.json(data);
+    } catch (err) {
+      console.error("Erro ao buscar ranking:", err);
+      res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
   app.get("/api/dashboard/sem-sala", async (req, res) => {
     try {
       const data = await storage.getDriversWithoutRoom();

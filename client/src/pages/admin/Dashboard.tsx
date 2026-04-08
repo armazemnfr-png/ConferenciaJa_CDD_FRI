@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { useDashboardMetrics, useConferences, useMetricsByRoom, useDriversWithoutRoom, useDrivers } from "@/hooks/use-conferences";
+import { useDashboardMetrics, useConferences, useMetricsByRoom, useDriversWithoutRoom, useDrivers, useDriverRanking } from "@/hooks/use-conferences";
 import DashboardFilters from "@/components/DashboardFilters";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Clock, AlertTriangle, PackageX, FileSpreadsheet, Loader2, BarChart3, Info, Building2, UserX } from "lucide-react";
+import { Clock, AlertTriangle, PackageX, FileSpreadsheet, Loader2, BarChart3, Info, Building2, UserX, Trophy, TrendingDown } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 
 // Formatação para as métricas (que vêm em minutos decimais)
@@ -32,6 +32,7 @@ export default function Dashboard() {
   const { data: roomMetrics } = useMetricsByRoom();
   const { data: driversWithoutRoom } = useDriversWithoutRoom();
   const { data: drivers } = useDrivers();
+  const { data: ranking } = useDriverRanking();
 
   const driverMap = React.useMemo(() => {
     const m = new Map<string, { name: string; room: string }>();
@@ -287,6 +288,101 @@ export default function Dashboard() {
             <p className="text-xs text-amber-600 mt-3">
               💡 Para corrigir: faça o upload da Base Matrícula (Motoristas) incluindo essas matrículas com a sala correspondente.
             </p>
+          </div>
+        )}
+
+        {/* Ranking por Sala */}
+        {ranking && ranking.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-base font-bold text-slate-700 mb-4 flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              Ranking de Tempo por Sala
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {ranking.map((r) => (
+                <div key={r.room} className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                  {/* Cabeçalho da sala */}
+                  <div className="px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-white/80 shrink-0" />
+                    <h3 className="text-white font-bold text-sm tracking-wide truncate">{r.room}</h3>
+                  </div>
+
+                  <div className="p-4 space-y-4">
+                    {/* TOP 3 */}
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Trophy className="h-3.5 w-3.5 text-yellow-500" />
+                        <span className="text-xs font-bold text-yellow-700 uppercase tracking-wider">Mais Rápidos</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {r.top.map((d, idx) => {
+                          const medals = ["🥇", "🥈", "🥉"];
+                          const barColors = ["bg-yellow-400", "bg-slate-300", "bg-orange-300"];
+                          const maxAvg = r.top[r.top.length - 1]?.avgMinutes || 1;
+                          const pct = Math.round((d.avgMinutes / maxAvg) * 100);
+                          return (
+                            <div key={d.registration} className="flex items-center gap-2">
+                              <span className="text-base w-6 shrink-0 text-center leading-none">{medals[idx] ?? `#${idx + 1}`}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-baseline mb-0.5">
+                                  <span className="text-xs font-semibold text-slate-800 truncate pr-1">{d.name}</span>
+                                  <span className="text-xs font-mono text-green-700 font-bold shrink-0">{formatFullTime(d.avgMinutes)}</span>
+                                </div>
+                                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${barColors[idx] ?? "bg-green-400"} transition-all`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* BOTTOM 3 */}
+                    {r.bottom.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2 pt-2 border-t border-dashed border-slate-200">
+                          <TrendingDown className="h-3.5 w-3.5 text-red-400" />
+                          <span className="text-xs font-bold text-red-600 uppercase tracking-wider">Mais Lentos</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {r.bottom.map((d, idx) => {
+                            const maxAvg = r.bottom[0]?.avgMinutes || 1;
+                            const pct = Math.round((d.avgMinutes / maxAvg) * 100);
+                            const rankNum = idx + 1;
+                            return (
+                              <div key={d.registration} className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-red-300 w-6 shrink-0 text-center">#{rankNum}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex justify-between items-baseline mb-0.5">
+                                    <span className="text-xs font-semibold text-slate-800 truncate pr-1">{d.name}</span>
+                                    <span className="text-xs font-mono text-red-600 font-bold shrink-0">{formatFullTime(d.avgMinutes)}</span>
+                                  </div>
+                                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full bg-red-400 transition-all"
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rodapé: total de motoristas na sala com dados */}
+                    <p className="text-[10px] text-slate-400 pt-1 text-right">
+                      {r.top.length + r.bottom.length} motoristas com dados nesta sala
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
