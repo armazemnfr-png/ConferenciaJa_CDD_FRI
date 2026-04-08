@@ -58,6 +58,17 @@ export async function registerRoutes(
     res.json(data);
   });
 
+  app.delete("/api/matinals/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
+      await storage.deleteMatinal(id);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao excluir matinal" });
+    }
+  });
+
   app.post(api.matinals.create.path, async (req, res) => {
     try {
       const body = { ...req.body };

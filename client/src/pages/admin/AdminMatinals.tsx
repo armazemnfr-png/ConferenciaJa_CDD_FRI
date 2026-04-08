@@ -1,20 +1,39 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { api } from "@shared/routes";
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
-import { Play, Filter, CalendarDays, X } from "lucide-react";
+import { Play, Filter, CalendarDays, X, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function AdminMatinals() {
   const [roomFilter, setRoomFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: matinals, isLoading } = useQuery<any[]>({
     queryKey: [api.matinals.list.path],
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/matinals/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matinals.list.path] });
+      toast({ title: "Registro excluído com sucesso." });
+      setConfirmDeleteId(null);
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Erro ao excluir registro." });
+      setConfirmDeleteId(null);
+    },
   });
 
   const filteredMatinals = matinals?.filter((m) => {
@@ -46,18 +65,15 @@ export default function AdminMatinals() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-accent font-display">Histórico de Matinais</h1>
-            <p className="text-muted-foreground">Registros de tempo das salas Corona e Stella.</p>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold text-accent font-display">Histórico de Matinais</h1>
+          <p className="text-muted-foreground">Registros de tempo das salas Corona e Stella.</p>
         </div>
 
         {/* Filtros */}
         <Card>
           <CardContent className="pt-5">
             <div className="flex flex-wrap items-end gap-3">
-              {/* Filtro por Sala */}
               <div className="flex flex-col gap-1.5 min-w-[160px]">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <Filter className="h-3.5 w-3.5" />
@@ -75,7 +91,6 @@ export default function AdminMatinals() {
                 </Select>
               </div>
 
-              {/* Data início */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <CalendarDays className="h-3.5 w-3.5" />
@@ -90,7 +105,6 @@ export default function AdminMatinals() {
                 />
               </div>
 
-              {/* Data fim */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <CalendarDays className="h-3.5 w-3.5" />
@@ -106,7 +120,6 @@ export default function AdminMatinals() {
                 />
               </div>
 
-              {/* Limpar filtros */}
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
@@ -118,7 +131,6 @@ export default function AdminMatinals() {
                 </button>
               )}
 
-              {/* Contador de resultados */}
               <div className="ml-auto text-sm text-muted-foreground self-end pb-1">
                 {isLoading ? "Carregando…" : `${filteredMatinals?.length ?? 0} registro(s)`}
               </div>
@@ -146,6 +158,7 @@ export default function AdminMatinals() {
                     <TableHead>Início Fixo</TableHead>
                     <TableHead>Finalizado Em</TableHead>
                     <TableHead>Duração (Min)</TableHead>
+                    <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -160,11 +173,41 @@ export default function AdminMatinals() {
                         {format(new Date(m.actualEndTime), "HH:mm:ss")}
                       </TableCell>
                       <TableCell>{m.durationMinutes} min</TableCell>
+                      <TableCell>
+                        {confirmDeleteId === m.id ? (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => deleteMutation.mutate(m.id)}
+                              disabled={deleteMutation.isPending}
+                              data-testid={`button-confirm-delete-${m.id}`}
+                              className="text-[10px] font-bold uppercase px-2 py-1 rounded bg-destructive text-white hover:bg-destructive/90 transition-colors"
+                            >
+                              {deleteMutation.isPending ? "..." : "Confirmar"}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="text-[10px] font-bold uppercase px-2 py-1 rounded border border-input text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setConfirmDeleteId(m.id)}
+                            data-testid={`button-delete-matinal-${m.id}`}
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                   {filteredMatinals?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         Nenhum registro encontrado para o período selecionado.
                       </TableCell>
                     </TableRow>

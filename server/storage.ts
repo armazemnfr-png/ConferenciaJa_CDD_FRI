@@ -40,11 +40,16 @@ export interface IStorage {
   getDriverByRegistration(registration: string): Promise<DriverBase | undefined>;
   getDashboardMetrics(filters?: any): Promise<DashboardMetrics>;
   deleteConference(id: number): Promise<void>;
+  deleteMatinal(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
   async deleteConference(id: number): Promise<void> {
     await db.delete(conferences).where(eq(conferences.id, id));
+  }
+
+  async deleteMatinal(id: number): Promise<void> {
+    await db.delete(matinals).where(eq(matinals.id, id));
   }
 
   async getMatinals(): Promise<Matinal[]> {
