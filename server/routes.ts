@@ -53,6 +53,16 @@ export async function registerRoutes(
   });
 
   // Matinals
+  app.get("/api/dashboard/by-room", async (req, res) => {
+    try {
+      const data = await storage.getMetricsByRoom();
+      res.json(data);
+    } catch (err) {
+      console.error("Erro ao buscar métricas por sala:", err);
+      res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
   app.get(api.matinals.list.path, async (req, res) => {
     const data = await storage.getMatinals();
     res.json(data);

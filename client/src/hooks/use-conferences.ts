@@ -48,6 +48,17 @@ export function useDashboardMetrics(filters?: FilterParams) {
   });
 }
 
+export function useMetricsByRoom() {
+  return useQuery<{ room: string; avgMinutes: number; count: number }[]>({
+    queryKey: ["/api/dashboard/by-room"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/by-room", { credentials: "include" });
+      if (!res.ok) throw new Error("Erro ao buscar métricas por sala");
+      return res.json();
+    },
+  });
+}
+
 export function useConference(mapNumber: string) {
   return useQuery({
     queryKey: [api.conferences.get.path, mapNumber],

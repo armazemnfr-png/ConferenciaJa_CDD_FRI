@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { useDashboardMetrics, useConferences } from "@/hooks/use-conferences";
+import { useDashboardMetrics, useConferences, useMetricsByRoom } from "@/hooks/use-conferences";
 import DashboardFilters from "@/components/DashboardFilters";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Clock, AlertTriangle, PackageX, FileSpreadsheet, Loader2, BarChart3, Info } from "lucide-react";
+import { Clock, AlertTriangle, PackageX, FileSpreadsheet, Loader2, BarChart3, Info, Building2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 
 // Formatação para as métricas (que vêm em minutos decimais)
@@ -29,6 +29,7 @@ export default function Dashboard() {
 
   const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics(activeFilters);
   const { data: conferences, isLoading: confLoading } = useConferences(activeFilters);
+  const { data: roomMetrics } = useMetricsByRoom();
 
   if (metricsLoading || confLoading) {
     return (
@@ -168,6 +169,57 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* Gráfico por Sala */}
+        <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
+          <h2 className="font-display font-bold text-xl mb-2 flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-primary" />
+            Tempo Médio de Conferência por Sala
+          </h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Média calculada cruzando matrícula do motorista com a base de salas. Apenas conferências finalizadas.
+          </p>
+
+          {roomMetrics && roomMetrics.length > 0 ? (
+            <div className="space-y-4">
+              {/* Cards de resumo */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+                {roomMetrics.map((r) => (
+                  <div key={r.room} className="bg-muted/30 rounded-xl p-4 border border-border">
+                    <p className="text-xs font-bold uppercase text-muted-foreground truncate">{r.room}</p>
+                    <p className="text-2xl font-mono font-bold text-accent mt-1">{formatFullTime(r.avgMinutes)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{r.count} conferência{r.count !== 1 ? "s" : ""}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Gráfico de barras por sala */}
+              <div className="h-[280px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={roomMetrics} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="room" tick={{ fontSize: 12 }} />
+                    <YAxis tickFormatter={formatMinutes} tick={{ fontSize: 11 }} width={52} />
+                    <RechartsTooltip
+                      formatter={(value: number, _name: string, props: any) => [
+                        formatMinutes(value),
+                        `Média (${props.payload.count} conf.)`
+                      ]}
+                      labelFormatter={(label) => `${label}`}
+                    />
+                    <Bar dataKey="avgMinutes" fill="hsl(var(--accent))" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : (
+            <div className="h-40 flex flex-col items-center justify-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed gap-2">
+              <Building2 className="w-8 h-8 opacity-30" />
+              <p className="text-sm">Faça o upload da Base Matrícula (Motoristas) para ver os dados por sala.</p>
+            </div>
+          )}
+        </div>
+
       </div>
     </AdminLayout>
   );

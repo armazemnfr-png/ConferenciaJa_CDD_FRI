@@ -39,6 +39,7 @@ export interface IStorage {
   bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void>;
   getDriverByRegistration(registration: string): Promise<DriverBase | undefined>;
   getDashboardMetrics(filters?: any): Promise<DashboardMetrics>;
+  getMetricsByRoom(): Promise<{ room: string; avgMinutes: number; count: number }[]>;
   deleteConference(id: number): Promise<void>;
   deleteMatinal(id: number): Promise<void>;
 }
@@ -193,6 +194,43 @@ export class DatabaseStorage implements IStorage {
     for (let i = 0; i < items.length; i += chunkSize) {
       await db.insert(driverBase).values(items.slice(i, i + chunkSize));
     }
+  }
+
+  async getMetricsByRoom(): Promise<{ room: string; avgMinutes: number; count: number }[]> {
+    // Busca todos os motoristas com sala definida
+    const drivers = await db.select().from(driverBase);
+    const roomByRegistration = new Map<string, string>();
+    for (const d of drivers) {
+      if (d.registration && d.room) {
+        roomByRegistration.set(d.registration.trim(), d.room.trim());
+      }
+    }
+
+    // Busca conferências finalizadas com tempo válido
+    const completed = await db.select().from(conferences)
+      .where(sql`status = 'completed' AND start_time IS NOT NULL AND end_time IS NOT NULL`);
+
+    // Agrupa por sala
+    const roomMap = new Map<string, { total: number; count: number }>();
+    for (const conf of completed) {
+      const room = roomByRegistration.get(conf.driverId?.trim() ?? "") ?? "Sem Sala";
+      const diffMs = new Date(conf.endTime!).getTime() - new Date(conf.startTime!).getTime();
+      const diffMin = diffMs / 60000;
+      if (diffMin < 0.1 || diffMin > 360) continue; // descarta outliers
+
+      const entry = roomMap.get(room) ?? { total: 0, count: 0 };
+      entry.total += diffMin;
+      entry.count += 1;
+      roomMap.set(room, entry);
+    }
+
+    return Array.from(roomMap.entries())
+      .map(([room, { total, count }]) => ({
+        room,
+        avgMinutes: Number((total / count).toFixed(3)),
+        count,
+      }))
+      .sort((a, b) => a.room.localeCompare(b.room));
   }
 
   async getDashboardMetrics(filters?: any): Promise<DashboardMetrics> {
