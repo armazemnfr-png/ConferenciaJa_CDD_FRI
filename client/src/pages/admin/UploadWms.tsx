@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
-import { Upload, CheckCircle, AlertCircle, Package, Truck, Users, Loader2 } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, Package, Truck, Users, Loader2, ArrowLeft } from 'lucide-react';
+import { Link } from 'wouter';
 
 type UploadType = 'WMS' | 'PW' | 'MOT';
 
@@ -105,6 +106,16 @@ const UploadDados = () => {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
+      <div className="mb-6">
+        <Link
+          href="/admin"
+          data-testid="link-upload-back"
+          className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors group"
+        >
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+          Voltar ao Painel
+        </Link>
+      </div>
       <h1 className="text-3xl font-bold mb-8 text-center text-gray-800">Painel de Importação</h1>
 
       <div className="flex border-b border-gray-200 mb-8">
