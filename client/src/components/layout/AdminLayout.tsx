@@ -13,7 +13,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
   const navigation = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-    { name: "Upload Dados (WMS)", href: "/admin/upload", icon: Upload },
+    { name: "Upload Dados", href: "/admin/upload", icon: Upload },
     { name: "Conferências", href: "/admin/conferences", icon: Truck },
     { name: "MatinalPlay (Histórico)", href: "/admin/matinals", icon: Play },
   ];
