@@ -56,6 +56,32 @@ type DriverRankEntry = {
   count: number;
 };
 
+type AdherenceMap = {
+  mapNumber: string;
+  status: 'completed' | 'in_progress' | 'not_started';
+  driverId: string | null;
+  driverName: string | null;
+  completedAt: string | null;
+};
+
+type AdherenceReport = {
+  totalMaps: number;
+  conferencedMaps: number;
+  adherencePercentage: number;
+  maps: AdherenceMap[];
+};
+
+export function useAdherencia() {
+  return useQuery<AdherenceReport>({
+    queryKey: ["/api/dashboard/adherencia"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/adherencia", { credentials: "include" });
+      if (!res.ok) throw new Error("Erro ao buscar aderência");
+      return res.json();
+    },
+  });
+}
+
 export function useDriverRanking() {
   return useQuery<{ room: string; top: DriverRankEntry[]; bottom: DriverRankEntry[] }[]>({
     queryKey: ["/api/dashboard/ranking"],

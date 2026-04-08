@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Upload, LogOut, Truck, Play, ArrowLeft, Home } from "lucide-react";
+import { LayoutDashboard, Upload, LogOut, Truck, Play, ArrowLeft, Home, BarChart2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 interface AdminLayoutProps {
@@ -16,6 +16,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { name: "Upload Dados", href: "/admin/upload", icon: Upload },
     { name: "Conferências", href: "/admin/conferences", icon: Truck },
     { name: "MatinalPlay (Histórico)", href: "/admin/matinals", icon: Play },
+    { name: "Aderência de Mapas", href: "/admin/adherencia", icon: BarChart2 },
   ];
 
   // Determina destino e label do botão voltar

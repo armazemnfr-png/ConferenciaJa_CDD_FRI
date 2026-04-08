@@ -20,6 +20,7 @@ import Dashboard from "@/pages/admin/Dashboard";
 import UploadWms from "@/pages/admin/UploadWms";
 import AdminMatinals from "@/pages/admin/AdminMatinals";
 import AdminConferences from "@/pages/admin/AdminConferences";
+import AdminAdherencia from "@/pages/admin/AdminAdherencia";
 
 // Roteiro do Supervisor
 import MatinalPlay from "@/pages/supervisor/MatinalPlay";
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/admin/upload" component={UploadWms} />
       <Route path="/admin/matinals" component={AdminMatinals} />
       <Route path="/admin/conferences" component={AdminConferences} />
+      <Route path="/admin/adherencia" component={AdminAdherencia} />
 
       {/* Rota 404 - Caso o usuário digite algo inexistente */}
       <Route component={NotFound} />

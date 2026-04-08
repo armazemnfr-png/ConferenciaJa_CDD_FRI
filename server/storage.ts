@@ -43,11 +43,102 @@ export interface IStorage {
   getMetricsByRoom(): Promise<{ room: string; avgMinutes: number; count: number }[]>;
   getDriversWithoutRoom(): Promise<{ driverId: string; maps: string[]; count: number }[]>;
   getDriverRanking(): Promise<{ room: string; top: any[]; bottom: any[] }[]>;
+  getAdherenceReport(): Promise<{
+    totalMaps: number;
+    conferencedMaps: number;
+    adherencePercentage: number;
+    maps: {
+      mapNumber: string;
+      status: 'completed' | 'in_progress' | 'not_started';
+      driverId: string | null;
+      driverName: string | null;
+      completedAt: string | null;
+    }[];
+  }>;
   deleteConference(id: number): Promise<void>;
   deleteMatinal(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
+  async getAdherenceReport() {
+    // 1. Todos os mapas esperados (do WMS upload)
+    const wmsRows = await db.selectDistinct({ mapNumber: wmsItems.mapNumber }).from(wmsItems);
+    const expectedMaps = new Set(wmsRows.map(r => r.mapNumber.trim()));
+
+    // 2. Todas as conferências (qualquer status) para saber driverId e status por mapa
+    const allConfs = await db.select().from(conferences);
+    // Mapa de mapNumber → melhor conference (completed > in_progress > pending)
+    const statusPriority: Record<string, number> = { completed: 3, in_progress: 2, pending: 1 };
+    const confByMap = new Map<string, typeof allConfs[0]>();
+    for (const c of allConfs) {
+      const key = c.mapNumber.trim();
+      const existing = confByMap.get(key);
+      if (!existing || (statusPriority[c.status] ?? 0) > (statusPriority[existing.status] ?? 0)) {
+        confByMap.set(key, c);
+      }
+    }
+
+    // 3. Motoristas pelo driverBase para resolver nomes
+    const allDrivers = await db.select().from(driverBase);
+    const nameByReg = new Map<string, string>();
+    allDrivers.forEach(d => nameByReg.set(d.registration.trim(), d.name));
+
+    // 4. Promax para motoristas dos mapas que nunca foram iniciados
+    const allPromax = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista }).from(promaxData);
+    const promaxByMap = new Map<string, string>();
+    allPromax.forEach(p => { if (p.mapa) promaxByMap.set(p.mapa.trim(), p.motorista ?? ""); });
+
+    // 5. Montar relatório
+    const maps: {
+      mapNumber: string;
+      status: 'completed' | 'in_progress' | 'not_started';
+      driverId: string | null;
+      driverName: string | null;
+      completedAt: string | null;
+    }[] = [];
+
+    for (const mapNumber of expectedMaps) {
+      const conf = confByMap.get(mapNumber);
+      let status: 'completed' | 'in_progress' | 'not_started';
+      if (!conf) {
+        status = 'not_started';
+      } else if (conf.status === 'completed') {
+        status = 'completed';
+      } else {
+        status = 'in_progress';
+      }
+
+      const driverId = conf?.driverId ?? null;
+      let driverName: string | null = null;
+      if (driverId) {
+        driverName = nameByReg.get(driverId.trim()) ?? null;
+      }
+      // Fallback: promax
+      if (!driverName) {
+        const promaxName = promaxByMap.get(mapNumber);
+        if (promaxName) driverName = promaxName;
+      }
+
+      maps.push({
+        mapNumber,
+        status,
+        driverId,
+        driverName,
+        completedAt: conf?.endTime ? conf.endTime.toISOString() : null,
+      });
+    }
+
+    // Ordenar: não iniciados primeiro, depois em progresso, depois concluídos; dentro de cada grupo, por mapa
+    const order = { not_started: 0, in_progress: 1, completed: 2 };
+    maps.sort((a, b) => order[a.status] - order[b.status] || a.mapNumber.localeCompare(b.mapNumber));
+
+    const conferencedMaps = maps.filter(m => m.status === 'completed').length;
+    const totalMaps = maps.length;
+    const adherencePercentage = totalMaps > 0 ? Math.round((conferencedMaps / totalMaps) * 100) : 0;
+
+    return { totalMaps, conferencedMaps, adherencePercentage, maps };
+  }
+
   async getDriverRanking(): Promise<{ room: string; top: any[]; bottom: any[] }[]> {
     // Todos os motoristas com sala cadastrada
     const allDrivers = await db.select().from(driverBase);
