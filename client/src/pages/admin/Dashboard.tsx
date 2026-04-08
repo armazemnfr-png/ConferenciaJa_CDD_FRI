@@ -55,7 +55,17 @@ export default function Dashboard() {
     </div>
   );
 
-  const chartData = [{ name: "Média Atual", time: metrics?.averageTimeMinutes || 0 }];
+  // Gráfico: uma barra por conferência concluída (últimas 15), com tempo em minutos decimais
+  const chartData = conferences
+    ?.filter(c => c.status === "completed" && c.startTime && c.endTime)
+    .map(c => ({
+      name: c.mapNumber,
+      time: Number(((new Date(c.endTime!).getTime() - new Date(c.startTime!).getTime()) / 60000).toFixed(2)),
+    }))
+    .slice(-15) ?? [];
+
+  // Formatador compartilhado para eixo Y e tooltip
+  const formatMinutes = (value: number) => formatFullTime(value);
 
   return (
     <AdminLayout>
@@ -115,13 +125,16 @@ export default function Dashboard() {
               Performance da Operação
             </h2>
             <div className="h-[300px] w-full">
-              {metrics?.totalConferences && metrics.totalConferences > 0 ? (
+              {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
+                  <BarChart data={chartData} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <RechartsTooltip />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                    <YAxis tickFormatter={formatMinutes} tick={{ fontSize: 11 }} width={48} />
+                    <RechartsTooltip
+                      formatter={(value: number) => [formatMinutes(value), "Tempo"]}
+                      labelFormatter={(label) => `Mapa: ${label}`}
+                    />
                     <Bar dataKey="time" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
