@@ -53,6 +53,15 @@ export async function registerRoutes(
   });
 
   // Matinals
+  app.get("/api/drivers", async (req, res) => {
+    try {
+      const drivers = await storage.getAllDrivers();
+      res.json(drivers);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao buscar motoristas" });
+    }
+  });
+
   app.get("/api/dashboard/sem-sala", async (req, res) => {
     try {
       const data = await storage.getDriversWithoutRoom();

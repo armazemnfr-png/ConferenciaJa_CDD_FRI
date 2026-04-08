@@ -1,5 +1,5 @@
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { useConferences } from "@/hooks/use-conferences";
+import { useConferences, useDrivers } from "@/hooks/use-conferences";
 import { useState, useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,14 @@ export default function ConferencesHistory() {
   });
 
   const { data: conferences } = useConferences();
+  const { data: drivers } = useDrivers();
+
+  // Mapa rápido: matrícula → { nome, sala }
+  const driverMap = useMemo(() => {
+    const m = new Map<string, { name: string; room: string }>();
+    drivers?.forEach(d => m.set(d.registration.trim(), { name: d.name, room: d.room }));
+    return m;
+  }, [drivers]);
 
   // Lógica de Exclusão
   const deleteMutation = useMutation({
@@ -186,7 +194,19 @@ export default function ConferencesHistory() {
                 return (
                   <TableRow key={conf.id}>
                     <TableCell className="font-bold">#{conf.mapNumber}</TableCell>
-                    <TableCell className="font-medium text-slate-700">{conf.driverId || "---"}</TableCell>
+                    <TableCell>
+                      {(() => {
+                        const info = driverMap.get(conf.driverId?.trim() ?? "");
+                        return info ? (
+                          <div>
+                            <p className="font-semibold text-slate-800 text-sm leading-tight">{info.name}</p>
+                            <p className="text-xs text-slate-400 font-mono">{conf.driverId} · {info.room}</p>
+                          </div>
+                        ) : (
+                          <span className="font-mono text-slate-500 text-sm">{conf.driverId || "---"}</span>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell className="text-sm text-slate-500">
                       {conf.startTime ? format(new Date(conf.startTime), "dd/MM/yy HH:mm", { locale: ptBR }) : "-"}
                     </TableCell>

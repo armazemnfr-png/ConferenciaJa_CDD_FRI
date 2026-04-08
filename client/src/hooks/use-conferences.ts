@@ -48,6 +48,17 @@ export function useDashboardMetrics(filters?: FilterParams) {
   });
 }
 
+export function useDrivers() {
+  return useQuery<{ id: number; registration: string; name: string; room: string }[]>({
+    queryKey: ["/api/drivers"],
+    queryFn: async () => {
+      const res = await fetch("/api/drivers", { credentials: "include" });
+      if (!res.ok) throw new Error("Erro ao buscar motoristas");
+      return res.json();
+    },
+  });
+}
+
 export function useDriversWithoutRoom() {
   return useQuery<{ driverId: string; maps: string[]; count: number }[]>({
     queryKey: ["/api/dashboard/sem-sala"],

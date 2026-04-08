@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { useDashboardMetrics, useConferences, useMetricsByRoom, useDriversWithoutRoom } from "@/hooks/use-conferences";
+import { useDashboardMetrics, useConferences, useMetricsByRoom, useDriversWithoutRoom, useDrivers } from "@/hooks/use-conferences";
 import DashboardFilters from "@/components/DashboardFilters";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -31,6 +31,13 @@ export default function Dashboard() {
   const { data: conferences, isLoading: confLoading } = useConferences(activeFilters);
   const { data: roomMetrics } = useMetricsByRoom();
   const { data: driversWithoutRoom } = useDriversWithoutRoom();
+  const { data: drivers } = useDrivers();
+
+  const driverMap = React.useMemo(() => {
+    const m = new Map<string, { name: string; room: string }>();
+    drivers?.forEach(d => m.set(d.registration.trim(), { name: d.name, room: d.room }));
+    return m;
+  }, [drivers]);
 
   if (metricsLoading || confLoading) {
     return (
@@ -161,9 +168,14 @@ export default function Dashboard() {
                       {conf.status === 'completed' ? 'Finalizado' : 'Em andamento'}
                     </span>
                   </div>
-                  <div className="text-[11px] text-muted-foreground flex justify-between font-mono">
-                    <span>Mot: {conf.driverId || "539"}</span>
-                    <span>{conf.startTime ? format(new Date(conf.startTime), "HH:mm:ss") : '--:--:--'}</span>
+                  <div className="text-[11px] text-muted-foreground flex justify-between">
+                    <span className="truncate pr-2">
+                      {(() => {
+                        const info = driverMap.get(conf.driverId?.trim() ?? "");
+                        return info ? info.name : (conf.driverId || "---");
+                      })()}
+                    </span>
+                    <span className="font-mono shrink-0">{conf.startTime ? format(new Date(conf.startTime), "HH:mm") : '--:--'}</span>
                   </div>
                 </div>
               ))}
@@ -244,24 +256,31 @@ export default function Dashboard() {
                 <thead>
                   <tr className="bg-amber-100 text-amber-800">
                     <th className="text-left font-bold px-4 py-3 text-xs uppercase tracking-wider">Matrícula</th>
+                    <th className="text-left font-bold px-4 py-3 text-xs uppercase tracking-wider">Nome</th>
                     <th className="text-left font-bold px-4 py-3 text-xs uppercase tracking-wider">Conferências</th>
                     <th className="text-left font-bold px-4 py-3 text-xs uppercase tracking-wider">Mapas</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {driversWithoutRoom.map((d, idx) => (
-                    <tr key={d.driverId} className={idx % 2 === 0 ? "bg-white" : "bg-amber-50/50"}>
-                      <td className="px-4 py-3 font-mono font-bold text-amber-900">{d.driverId}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-1 rounded-full">
-                          {d.count}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
-                        {d.maps.join(", ")}
-                      </td>
-                    </tr>
-                  ))}
+                  {driversWithoutRoom.map((d, idx) => {
+                    const info = driverMap.get(d.driverId.trim());
+                    return (
+                      <tr key={d.driverId} className={idx % 2 === 0 ? "bg-white" : "bg-amber-50/50"}>
+                        <td className="px-4 py-3 font-mono font-bold text-amber-900">{d.driverId}</td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {info ? info.name : <span className="text-amber-500 italic text-xs">Não cadastrado</span>}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-1 rounded-full">
+                            {d.count}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
+                          {d.maps.join(", ")}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -38,6 +38,7 @@ export interface IStorage {
   getPromaxByDriver(registration: string): Promise<PromaxData | undefined>;
   bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void>;
   getDriverByRegistration(registration: string): Promise<DriverBase | undefined>;
+  getAllDrivers(): Promise<DriverBase[]>;
   getDashboardMetrics(filters?: any): Promise<DashboardMetrics>;
   getMetricsByRoom(): Promise<{ room: string; avgMinutes: number; count: number }[]>;
   getDriversWithoutRoom(): Promise<{ driverId: string; maps: string[]; count: number }[]>;
@@ -186,6 +187,10 @@ export class DatabaseStorage implements IStorage {
   async getDriverByRegistration(registration: string): Promise<DriverBase | undefined> {
     const [driver] = await db.select().from(driverBase).where(eq(driverBase.registration, registration));
     return driver;
+  }
+
+  async getAllDrivers(): Promise<DriverBase[]> {
+    return await db.select().from(driverBase).orderBy(driverBase.name);
   }
 
   async bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void> {
