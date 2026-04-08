@@ -53,6 +53,16 @@ export async function registerRoutes(
   });
 
   // Matinals
+  app.get("/api/dashboard/sem-sala", async (req, res) => {
+    try {
+      const data = await storage.getDriversWithoutRoom();
+      res.json(data);
+    } catch (err) {
+      console.error("Erro ao buscar motoristas sem sala:", err);
+      res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
   app.get("/api/dashboard/by-room", async (req, res) => {
     try {
       const data = await storage.getMetricsByRoom();

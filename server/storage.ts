@@ -40,6 +40,7 @@ export interface IStorage {
   getDriverByRegistration(registration: string): Promise<DriverBase | undefined>;
   getDashboardMetrics(filters?: any): Promise<DashboardMetrics>;
   getMetricsByRoom(): Promise<{ room: string; avgMinutes: number; count: number }[]>;
+  getDriversWithoutRoom(): Promise<{ driverId: string; maps: string[]; count: number }[]>;
   deleteConference(id: number): Promise<void>;
   deleteMatinal(id: number): Promise<void>;
 }
@@ -194,6 +195,27 @@ export class DatabaseStorage implements IStorage {
     for (let i = 0; i < items.length; i += chunkSize) {
       await db.insert(driverBase).values(items.slice(i, i + chunkSize));
     }
+  }
+
+  async getDriversWithoutRoom(): Promise<{ driverId: string; maps: string[]; count: number }[]> {
+    const drivers = await db.select().from(driverBase);
+    const knownRegistrations = new Set(drivers.map(d => d.registration.trim()));
+
+    const completed = await db.select().from(conferences)
+      .where(sql`status = 'completed'`);
+
+    const map = new Map<string, string[]>();
+    for (const conf of completed) {
+      const id = conf.driverId?.trim() ?? "";
+      if (!id || knownRegistrations.has(id)) continue;
+      const existing = map.get(id) ?? [];
+      existing.push(conf.mapNumber);
+      map.set(id, existing);
+    }
+
+    return Array.from(map.entries())
+      .map(([driverId, maps]) => ({ driverId, maps, count: maps.length }))
+      .sort((a, b) => b.count - a.count);
   }
 
   async getMetricsByRoom(): Promise<{ room: string; avgMinutes: number; count: number }[]> {

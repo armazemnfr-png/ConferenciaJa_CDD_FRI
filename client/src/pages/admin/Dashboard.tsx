@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { useDashboardMetrics, useConferences, useMetricsByRoom } from "@/hooks/use-conferences";
+import { useDashboardMetrics, useConferences, useMetricsByRoom, useDriversWithoutRoom } from "@/hooks/use-conferences";
 import DashboardFilters from "@/components/DashboardFilters";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Clock, AlertTriangle, PackageX, FileSpreadsheet, Loader2, BarChart3, Info, Building2 } from "lucide-react";
+import { Clock, AlertTriangle, PackageX, FileSpreadsheet, Loader2, BarChart3, Info, Building2, UserX } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 
 // Formatação para as métricas (que vêm em minutos decimais)
@@ -30,6 +30,7 @@ export default function Dashboard() {
   const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics(activeFilters);
   const { data: conferences, isLoading: confLoading } = useConferences(activeFilters);
   const { data: roomMetrics } = useMetricsByRoom();
+  const { data: driversWithoutRoom } = useDriversWithoutRoom();
 
   if (metricsLoading || confLoading) {
     return (
@@ -219,6 +220,56 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* Matrículas sem sala */}
+        {driversWithoutRoom && driversWithoutRoom.length > 0 && (
+          <div className="bg-card rounded-2xl border border-amber-200 bg-amber-50/40 p-6 shadow-sm">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="font-display font-bold text-xl flex items-center gap-2 text-amber-800">
+                  <UserX className="w-5 h-5" />
+                  Matrículas sem Sala cadastrada
+                </h2>
+                <p className="text-sm text-amber-700 mt-1">
+                  {driversWithoutRoom.length} matrícula{driversWithoutRoom.length !== 1 ? "s" : ""} encontradas em conferências concluídas que não constam na base de motoristas.
+                </p>
+              </div>
+              <span className="text-2xl font-black font-mono text-amber-600">
+                {driversWithoutRoom.reduce((sum, d) => sum + d.count, 0)}
+              </span>
+            </div>
+
+            <div className="overflow-auto rounded-xl border border-amber-200">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-amber-100 text-amber-800">
+                    <th className="text-left font-bold px-4 py-3 text-xs uppercase tracking-wider">Matrícula</th>
+                    <th className="text-left font-bold px-4 py-3 text-xs uppercase tracking-wider">Conferências</th>
+                    <th className="text-left font-bold px-4 py-3 text-xs uppercase tracking-wider">Mapas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {driversWithoutRoom.map((d, idx) => (
+                    <tr key={d.driverId} className={idx % 2 === 0 ? "bg-white" : "bg-amber-50/50"}>
+                      <td className="px-4 py-3 font-mono font-bold text-amber-900">{d.driverId}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-1 rounded-full">
+                          {d.count}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
+                        {d.maps.join(", ")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-amber-600 mt-3">
+              💡 Para corrigir: faça o upload da Base Matrícula (Motoristas) incluindo essas matrículas com a sala correspondente.
+            </p>
+          </div>
+        )}
 
       </div>
     </AdminLayout>
