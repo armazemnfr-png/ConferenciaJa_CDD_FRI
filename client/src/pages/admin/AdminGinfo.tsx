@@ -12,6 +12,9 @@ export default function AdminGinfo() {
 
   const { data: items = [], isLoading } = useQuery<GinfoChecklist[]>({
     queryKey: ["/api/ginfo"],
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   const equipes = Array.from(new Set(items.map((i) => i.equipe).filter(Boolean))).sort();
