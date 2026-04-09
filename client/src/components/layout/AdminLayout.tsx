@@ -2,62 +2,57 @@ import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Upload, LogOut, Truck, Play, ArrowLeft, Home, BarChart2, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface AdminLayoutProps {
   children: ReactNode;
 }
 
-function useAdminAuth() {
-  const qc = useQueryClient();
-  const { data, isLoading } = useQuery<{ authenticated: boolean }>({
-    queryKey: ["/api/admin/me"],
-    queryFn: async () => {
-      const res = await fetch("/api/admin/me", { credentials: "include" });
-      return res.json();
-    },
-    staleTime: 1000 * 60 * 10,
-    retry: false,
-  });
-  const loginMutation = useMutation({
-    mutationFn: async (password: string) => {
-      const res = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ password }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message ?? "Erro ao autenticar");
-      return json;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/me"] }),
-  });
-  return { isAuthenticated: !!data?.authenticated, isLoading, loginMutation };
+const SESSION_KEY = "confere_admin_ok";
+
+function isUnlocked() {
+  try { return sessionStorage.getItem(SESSION_KEY) === "1"; } catch { return false; }
+}
+function setUnlocked() {
+  try { sessionStorage.setItem(SESSION_KEY, "1"); } catch { /* noop */ }
+}
+function clearUnlocked() {
+  try { sessionStorage.removeItem(SESSION_KEY); } catch { /* noop */ }
 }
 
 function AdminPasswordGate({ onSuccess }: { onSuccess: () => void }) {
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
-  const { loginMutation } = useAdminAuth();
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setLoading(true);
     try {
-      await loginMutation.mutateAsync(password);
-      onSuccess();
-    } catch (err: any) {
-      setError(err.message ?? "Senha incorreta.");
-      setPassword("");
+      const res = await fetch("/api/admin/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setUnlocked();
+        onSuccess();
+      } else {
+        setError(json.message ?? "Senha incorreta. Tente novamente.");
+        setPassword("");
+      }
+    } catch {
+      setError("Erro de conexão. Tente novamente.");
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/20 mb-4">
             <Truck className="h-8 w-8 text-primary" />
@@ -66,7 +61,6 @@ function AdminPasswordGate({ onSuccess }: { onSuccess: () => void }) {
           <p className="text-slate-400 text-sm mt-1">Painel Administrativo</p>
         </div>
 
-        {/* Card */}
         <div className="bg-white rounded-2xl shadow-2xl p-6">
           <div className="flex items-center gap-2 mb-5">
             <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center">
@@ -106,11 +100,11 @@ function AdminPasswordGate({ onSuccess }: { onSuccess: () => void }) {
 
             <button
               type="submit"
-              disabled={loginMutation.isPending || !password}
+              disabled={loading || !password}
               data-testid="button-admin-login"
               className="w-full py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
             >
-              {loginMutation.isPending ? (
+              {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Verificando...
@@ -133,8 +127,7 @@ function AdminPasswordGate({ onSuccess }: { onSuccess: () => void }) {
 export function AdminLayout({ children }: AdminLayoutProps) {
   const [location] = useLocation();
   const { logout, user } = useAuth();
-  const { isAuthenticated, isLoading: authLoading } = useAdminAuth();
-  const qc = useQueryClient();
+  const [unlocked, setUnlocked_] = useState(isUnlocked);
 
   const navigation = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -144,7 +137,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { name: "Aderência de Mapas", href: "/admin/adherencia", icon: BarChart2 },
   ];
 
-  // Determina destino e label do botão voltar
   const isRoot = location === "/admin";
   const backHref = isRoot ? "/" : "/admin";
 
@@ -152,21 +144,14 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     window.history.back();
   }
 
-  // Gate de autenticação
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-950 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+  function handleLogout() {
+    clearUnlocked();
+    setUnlocked_(false);
+    logout();
   }
 
-  if (!isAuthenticated) {
-    return (
-      <AdminPasswordGate
-        onSuccess={() => qc.invalidateQueries({ queryKey: ["/api/admin/me"] })}
-      />
-    );
+  if (!unlocked) {
+    return <AdminPasswordGate onSuccess={() => setUnlocked_(true)} />;
   }
 
   return (
@@ -231,7 +216,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             </div>
           </div>
           <button
-            onClick={() => logout()}
+            onClick={handleLogout}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
           >
             <LogOut className="h-4 w-4" />
@@ -244,7 +229,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header — mobile e desktop */}
         <header className="h-14 bg-card border-b border-border flex items-center gap-3 px-4">
-          {/* Botão Voltar */}
           <button
             onClick={handleBack}
             data-testid="button-back"
@@ -254,25 +238,21 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             <span>Voltar</span>
           </button>
 
-          {/* Divisor */}
           <div className="h-5 w-px bg-border" />
 
-          {/* Logo — visível em mobile */}
           <div className="flex items-center gap-2 text-accent font-bold text-base font-display md:hidden">
             <Truck className="h-5 w-5 text-primary" />
             <span>ConfereJá</span>
           </div>
 
-          {/* Título da página atual — visível em desktop */}
           <p className="hidden md:block text-sm text-muted-foreground">
             {navigation.find(n => n.href === location)?.name ?? "Administrador"}
           </p>
 
           <div className="flex-1" />
 
-          {/* Logout — mobile */}
           <button
-            onClick={() => logout()}
+            onClick={handleLogout}
             className="md:hidden p-2 text-muted-foreground hover:text-destructive transition-colors"
             data-testid="button-logout-mobile"
           >

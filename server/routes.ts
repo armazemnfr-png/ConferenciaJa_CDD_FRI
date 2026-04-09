@@ -3,38 +3,20 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { getSession } from "./replit_integrations/auth";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
-  // Sessão (necessária para autenticação do painel admin)
-  app.use(getSession());
-
-  // --- PROTEÇÃO DE SENHA DO PAINEL ADMIN ---
-  app.post("/api/admin/login", (req: Request, res: Response) => {
+  // --- PROTEÇÃO SIMPLES DO PAINEL ADMIN ---
+  app.post("/api/admin/verify", (req: Request, res: Response) => {
     const { password } = req.body ?? {};
-    const correctPassword = process.env.ADMIN_PASSWORD;
-    if (!correctPassword) {
-      return res.status(500).json({ success: false, message: "Senha não configurada no servidor." });
-    }
+    const correctPassword = process.env.ADMIN_PASSWORD ?? "Ambev@123";
     if (password === correctPassword) {
-      (req.session as any).adminAuthenticated = true;
-      return res.json({ success: true });
+      return res.json({ ok: true });
     }
-    return res.status(401).json({ success: false, message: "Senha incorreta." });
-  });
-
-  app.get("/api/admin/me", (req: Request, res: Response) => {
-    const authenticated = !!(req.session as any)?.adminAuthenticated;
-    res.json({ authenticated });
-  });
-
-  app.post("/api/admin/logout", (req: Request, res: Response) => {
-    (req.session as any).adminAuthenticated = false;
-    res.json({ success: true });
+    return res.status(401).json({ ok: false, message: "Senha incorreta." });
   });
 
   // --- ROTA DE VALIDAÇÃO DE MOTORISTA (LOGIN INTELIGENTE) ---
