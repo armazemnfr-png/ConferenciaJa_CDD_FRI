@@ -39,18 +39,33 @@ export default function AdminGinfo() {
     URL.revokeObjectURL(url);
   };
 
+  // Converte "HH:MM:SS" ou "MM:SS" para segundos (inteiro)
+  const toSeconds = (tempo: string): number | null => {
+    const parts = tempo.trim().split(":").map(Number);
+    if (parts.some(isNaN)) return null;
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    return null;
+  };
+
+  // Formata segundos para MM:SS
+  const toMMSS = (totalSec: number): string => {
+    const m = Math.floor(totalSec / 60);
+    const s = Math.round(totalSec % 60);
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  };
+
+  // Média geral (todos os registros)
+  const allSeconds = items.map((i) => toSeconds(i.tempo)).filter((v): v is number => v !== null);
+  const globalAvgSec = allSeconds.length > 0
+    ? allSeconds.reduce((a, b) => a + b, 0) / allSeconds.length
+    : null;
+
   const avgByEquipe = equipes.map((eq) => {
     const group = items.filter((i) => i.equipe === eq);
-    const parsed = group
-      .map((i) => {
-        const parts = i.tempo.split(":").map(Number);
-        if (parts.length === 3) return parts[0] * 60 + parts[1] + parts[2] / 60;
-        if (parts.length === 2) return parts[0] + parts[1] / 60;
-        return null;
-      })
-      .filter((v): v is number => v !== null && !isNaN(v));
-    const avg = parsed.length > 0 ? parsed.reduce((a, b) => a + b, 0) / parsed.length : 0;
-    return { equipe: eq, count: group.length, avg };
+    const secs = group.map((i) => toSeconds(i.tempo)).filter((v): v is number => v !== null);
+    const avgSec = secs.length > 0 ? secs.reduce((a, b) => a + b, 0) / secs.length : null;
+    return { equipe: eq, count: group.length, avgSec };
   });
 
   return (
@@ -76,10 +91,29 @@ export default function AdminGinfo() {
           </button>
         </div>
 
+        {/* Card de média geral */}
+        {globalAvgSec !== null && (
+          <div
+            data-testid="card-media-geral"
+            className="bg-blue-600 rounded-xl shadow p-5 flex items-center gap-5"
+          >
+            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+              <Clock className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Tempo Médio Geral (todas as salas)</p>
+              <p className="text-white text-4xl font-bold font-mono tracking-wide">
+                {toMMSS(globalAvgSec)}
+              </p>
+              <p className="text-blue-200 text-xs mt-0.5">{allSeconds.length} registros considerados</p>
+            </div>
+          </div>
+        )}
+
         {/* Summary cards by equipe */}
         {avgByEquipe.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {avgByEquipe.map(({ equipe, count, avg }) => (
+            {avgByEquipe.map(({ equipe, count, avgSec }) => (
               <div
                 key={equipe}
                 data-testid={`card-equipe-${equipe}`}
@@ -89,8 +123,8 @@ export default function AdminGinfo() {
                   <Users className="w-4 h-4 text-blue-500" />
                   <span className="text-sm font-semibold text-gray-700 truncate">{equipe}</span>
                 </div>
-                <div className="text-2xl font-bold text-gray-800">
-                  {avg > 0 ? `${avg.toFixed(0)} min` : "--"}
+                <div className="text-2xl font-bold font-mono text-gray-800">
+                  {avgSec !== null ? toMMSS(avgSec) : "--"}
                 </div>
                 <div className="text-xs text-gray-400 mt-1">média · {count} registros</div>
               </div>
@@ -173,13 +207,8 @@ export default function AdminGinfo() {
                     <td className="px-4 py-3 text-gray-700">{item.realizadoPor || "—"}</td>
                     <td className="px-4 py-3">
                       {(() => {
-                        const parts = (item.tempo || "").split(":").map(Number);
-                        const totalMin = parts.length === 3
-                          ? parts[0] * 60 + parts[1] + parts[2] / 60
-                          : parts.length === 2
-                            ? parts[0] + parts[1] / 60
-                            : null;
-                        const isShort = totalMin !== null && totalMin < 4;
+                        const sec = toSeconds(item.tempo || "");
+                        const isShort = sec !== null && sec < 240; // < 4 minutos
                         return (
                           <span className={`flex items-center gap-1 font-mono font-medium ${isShort ? "text-red-600" : "text-gray-800"}`}>
                             <Clock className={`w-3.5 h-3.5 ${isShort ? "text-red-400" : "text-gray-400"}`} />
