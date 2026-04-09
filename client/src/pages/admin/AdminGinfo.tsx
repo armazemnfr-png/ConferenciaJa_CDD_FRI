@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import AdminLayout from "@/components/layout/AdminLayout";
+import { AdminLayout } from "@/components/layout/AdminLayout";
 import { ClipboardCheck, Search, Clock, Map, Users, User, Download } from "lucide-react";
 import type { GinfoChecklist } from "@shared/schema";
 
