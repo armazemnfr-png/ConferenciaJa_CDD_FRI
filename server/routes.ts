@@ -3,11 +3,15 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import { getSession } from "./replit_integrations/auth";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  // Sessão (necessária para autenticação do painel admin)
+  app.use(getSession());
 
   // --- PROTEÇÃO DE SENHA DO PAINEL ADMIN ---
   app.post("/api/admin/login", (req: Request, res: Response) => {
