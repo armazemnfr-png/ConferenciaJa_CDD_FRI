@@ -2,8 +2,7 @@ import { useState, useMemo } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useAdherencia } from "@/hooks/use-conferences";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, CheckCircle2, Clock, XCircle, BarChart2, Download } from "lucide-react";
+import { Loader2, Search, CheckCircle2, Clock, XCircle, BarChart2, Download, CalendarDays, X } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -31,10 +30,35 @@ export default function AdminAdherencia() {
   const { data, isLoading } = useAdherencia();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
-  const filtered = useMemo(() => {
+  const hasDateFilter = dateFrom !== "" || dateTo !== "";
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  // Filtro de período aplicado a completedAt
+  const dateFiltered = useMemo(() => {
     if (!data) return [];
+    if (!hasDateFilter) return data.maps;
     return data.maps.filter(m => {
+      if (!m.completedAt) return false; // sem data = fora do período
+      const d = new Date(m.completedAt);
+      const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      if (dateFrom && day < new Date(dateFrom + "T00:00:00")) return false;
+      if (dateTo && day > new Date(dateTo + "T00:00:00")) return false;
+      return true;
+    });
+  }, [data, dateFrom, dateTo, hasDateFilter]);
+
+  // Filtro completo para a tabela
+  const filtered = useMemo(() => {
+    return dateFiltered.filter(m => {
       const matchesSearch =
         m.mapNumber.toLowerCase().includes(search.toLowerCase()) ||
         (m.driverName ?? "").toLowerCase().includes(search.toLowerCase()) ||
@@ -42,11 +66,14 @@ export default function AdminAdherencia() {
       const matchesStatus = statusFilter === "all" || m.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [data, search, statusFilter]);
+  }, [dateFiltered, search, statusFilter]);
 
-  const notConferred = data?.maps.filter(m => m.status === 'not_started').length ?? 0;
-  const inProgress = data?.maps.filter(m => m.status === 'in_progress').length ?? 0;
-  const conferenced = data?.maps.filter(m => m.status === 'completed').length ?? 0;
+  // Métricas refletem o período selecionado
+  const notConferred = dateFiltered.filter(m => m.status === 'not_started').length;
+  const inProgress = dateFiltered.filter(m => m.status === 'in_progress').length;
+  const conferenced = dateFiltered.filter(m => m.status === 'completed').length;
+  const totalFiltered = dateFiltered.length;
+  const adherencePct = totalFiltered > 0 ? Math.round((conferenced / totalFiltered) * 100) : 0;
 
   function downloadCsv() {
     if (!data) return;
@@ -92,7 +119,8 @@ export default function AdminAdherencia() {
     );
   }
 
-  const pct = data.adherencePercentage;
+  const pct = hasDateFilter ? adherencePct : data.adherencePercentage;
+  const total = hasDateFilter ? totalFiltered : data.totalMaps;
   const pctColor = pct >= 90 ? "text-emerald-600" : pct >= 70 ? "text-yellow-600" : "text-red-600";
   const barColor = pct >= 90 ? "bg-emerald-500" : pct >= 70 ? "bg-yellow-400" : "bg-red-500";
 
@@ -120,11 +148,52 @@ export default function AdminAdherencia() {
           </button>
         </div>
 
+        {/* Filtro de Período */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-600 shrink-0">
+              <CalendarDays className="w-4 h-4 text-primary" />
+              Período
+            </div>
+            <div className="flex flex-1 items-center gap-2">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                data-testid="input-date-from"
+                className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              <span className="text-slate-400 text-sm shrink-0">até</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                data-testid="input-date-to"
+                className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            {(hasDateFilter || search || statusFilter !== "all") && (
+              <button
+                onClick={clearFilters}
+                data-testid="button-clear-filters"
+                className="flex items-center gap-1 px-3 py-2 text-xs text-slate-500 hover:text-red-600 border border-slate-200 hover:border-red-300 rounded-xl transition"
+              >
+                <X className="w-3.5 h-3.5" /> Limpar filtros
+              </button>
+            )}
+          </div>
+          {hasDateFilter && (
+            <p className="text-xs text-slate-400 mt-2 ml-1">
+              Filtrando por data de conclusão da conferência. Mapas sem data (não conferidos) não aparecem neste modo.
+            </p>
+          )}
+        </div>
+
         {/* Cartões de métricas */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Total de Mapas</p>
-            <p className="text-3xl font-bold text-slate-800" data-testid="text-total-maps">{data.totalMaps}</p>
+            <p className="text-3xl font-bold text-slate-800" data-testid="text-total-maps">{total}</p>
           </div>
           <div className="bg-emerald-50 rounded-2xl border border-emerald-200 shadow-sm p-4">
             <p className="text-xs text-emerald-700 uppercase tracking-wider font-semibold mb-1">Conferidos</p>
@@ -143,7 +212,9 @@ export default function AdminAdherencia() {
         {/* Barra de Aderência */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold text-slate-700">Aderência Geral</span>
+            <span className="text-sm font-semibold text-slate-700">
+              Aderência {hasDateFilter ? "no Período" : "Geral"}
+            </span>
             <span className={`text-3xl font-black ${pctColor}`} data-testid="text-adherence-pct">{pct}%</span>
           </div>
           <div className="h-4 bg-slate-100 rounded-full overflow-hidden">
@@ -153,8 +224,8 @@ export default function AdminAdherencia() {
             />
           </div>
           <div className="flex justify-between text-xs text-muted-foreground mt-2">
-            <span>{data.conferencedMaps} conferidos</span>
-            <span>{data.totalMaps} total</span>
+            <span>{conferenced} conferidos</span>
+            <span>{total} total</span>
           </div>
         </div>
 
@@ -247,7 +318,7 @@ export default function AdminAdherencia() {
           </div>
 
           <div className="px-4 py-3 border-t border-slate-100 text-xs text-muted-foreground">
-            Exibindo {filtered.length} de {data.totalMaps} mapas
+            Exibindo {filtered.length} de {total} mapas{hasDateFilter ? " no período" : ""}
           </div>
         </div>
       </div>
