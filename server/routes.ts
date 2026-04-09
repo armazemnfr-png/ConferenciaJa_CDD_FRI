@@ -55,6 +55,30 @@ export async function registerRoutes(
     }
   });
 
+  // --- GINFO CHECKLIST ---
+  app.post("/api/ginfo/upload", async (req, res) => {
+    try {
+      const { items } = req.body;
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: "Nenhum item enviado." });
+      }
+      await storage.bulkInsertGinfoChecklist(items);
+      res.json({ success: true, count: items.length });
+    } catch (err) {
+      console.error("Erro ao importar Ginfo:", err);
+      res.status(500).json({ message: "Erro ao importar checklist Ginfo." });
+    }
+  });
+
+  app.get("/api/ginfo", async (req, res) => {
+    try {
+      const data = await storage.getGinfoChecklist();
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao buscar checklist Ginfo." });
+    }
+  });
+
   app.get("/api/dashboard/adherencia", async (req, res) => {
     try {
       const data = await storage.getAdherenceReport();

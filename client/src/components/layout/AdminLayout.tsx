@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Upload, LogOut, Truck, Play, ArrowLeft, Home, BarChart2, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
+import { LayoutDashboard, Upload, LogOut, Truck, Play, ArrowLeft, Home, BarChart2, Lock, Eye, EyeOff, Loader2, ClipboardCheck } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 interface AdminLayoutProps {
@@ -135,6 +135,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { name: "Conferências", href: "/admin/conferences", icon: Truck },
     { name: "MatinalPlay (Histórico)", href: "/admin/matinals", icon: Play },
     { name: "Aderência de Mapas", href: "/admin/adherencia", icon: BarChart2 },
+    { name: "Checklist Ginfo", href: "/admin/ginfo", icon: ClipboardCheck },
   ];
 
   const isRoot = location === "/admin";

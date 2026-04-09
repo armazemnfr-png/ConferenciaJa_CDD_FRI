@@ -84,10 +84,20 @@ export const driverBase = pgTable("driver_base", {
   room: text("room").notNull(),
 });
 
+export const ginfoChecklist = pgTable("ginfo_checklist", {
+  id: serial("id").primaryKey(),
+  realizadoPor: text("realizado_por").notNull(),
+  equipe: text("equipe").notNull(),
+  mapa: text("mapa").notNull(),
+  tempo: text("tempo").notNull(),
+  importedAt: timestamp("imported_at").defaultNow(),
+});
+
 export const insertConferenceSchema = createInsertSchema(conferences).omit({ id: true, createdAt: true });
 export const insertWmsItemSchema = createInsertSchema(wmsItems).omit({ id: true });
 export const insertPromaxDataSchema = createInsertSchema(promaxData).omit({ id: true });
 export const insertDriverBaseSchema = createInsertSchema(driverBase).omit({ id: true });
+export const insertGinfoChecklistSchema = createInsertSchema(ginfoChecklist).omit({ id: true, importedAt: true });
 export const insertMatinalSchema = createInsertSchema(matinals).omit({ id: true, date: true });
 
 export const updateWmsItemSchema = z.object({
@@ -106,6 +116,8 @@ export type PromaxData = typeof promaxData.$inferSelect;
 export type InsertPromaxData = z.infer<typeof insertPromaxDataSchema>;
 export type DriverBase = typeof driverBase.$inferSelect;
 export type InsertDriverBase = z.infer<typeof insertDriverBaseSchema>;
+export type GinfoChecklist = typeof ginfoChecklist.$inferSelect;
+export type InsertGinfoChecklist = z.infer<typeof insertGinfoChecklistSchema>;
 export type Matinal = typeof matinals.$inferSelect;
 export type InsertMatinal = z.infer<typeof insertMatinalSchema>;
 

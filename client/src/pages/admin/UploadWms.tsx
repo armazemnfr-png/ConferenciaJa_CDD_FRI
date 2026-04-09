@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
-import { Upload, CheckCircle, AlertCircle, Package, Truck, Users, Loader2, ArrowLeft } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, Package, Truck, Users, Loader2, ArrowLeft, ClipboardCheck } from 'lucide-react';
 import { Link } from 'wouter';
 
-type UploadType = 'WMS' | 'PW' | 'MOT';
+type UploadType = 'WMS' | 'PW' | 'MOT' | 'GINFO';
 
 const UploadDados = () => {
   const [activeTab, setActiveTab] = useState<UploadType>('WMS');
@@ -13,7 +13,8 @@ const UploadDados = () => {
   const configs = {
     WMS: { title: "Relatório WMS (Itens)", icon: <Package className="w-5 h-5" />, endpoint: '/api/wms-items/upload' },
     PW: { title: "Relatório PW 031120 (Promax)", icon: <Truck className="w-5 h-5" />, endpoint: '/api/promax/upload' },
-    MOT: { title: "Base Matrícula (Motoristas)", icon: <Users className="w-5 h-5" />, endpoint: '/api/motoristas/upload' }
+    MOT: { title: "Base Matrícula (Motoristas)", icon: <Users className="w-5 h-5" />, endpoint: '/api/motoristas/upload' },
+    GINFO: { title: "Checklist Ginfo (Saída de Veículos)", icon: <ClipboardCheck className="w-5 h-5" />, endpoint: '/api/ginfo/upload' }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,6 +72,25 @@ const UploadDados = () => {
               name: String(item['Colaborador'] || "").trim(),
               room: String(item['Sala'] || "")
             })).filter((item: any) => item.registration && item.registration !== "");
+          }
+          else if (activeTab === 'GINFO') {
+            // Colunas: G=REALIZADO POR, H=EQUIPE, N=MAPA, T=TEMPO
+            // Parseia por nome de cabeçalho, com fallback por índice (header: false)
+            items = results.data.map((row: any) => {
+              const realizadoPor = String(
+                row['REALIZADO POR'] || row['Realizado Por'] || row['realizado_por'] || ""
+              ).trim();
+              const equipe = String(
+                row['EQUIPE'] || row['Equipe'] || row['equipe'] || ""
+              ).trim();
+              const mapa = String(
+                row['MAPA'] || row['Mapa'] || row['mapa'] || ""
+              ).trim();
+              const tempo = String(
+                row['TEMPO'] || row['Tempo'] || row['tempo'] || ""
+              ).trim();
+              return { realizadoPor, equipe, mapa, tempo };
+            }).filter((item: any) => item.mapa && item.mapa !== "undefined" && item.tempo);
           }
 
           if (items.length === 0) {

@@ -5,11 +5,14 @@ import {
   promaxData,
   driverBase,
   matinals,
+  ginfoChecklist,
   type Conference,
   type WmsItem,
   type PromaxData,
   type DriverBase,
   type Matinal,
+  type GinfoChecklist,
+  type InsertGinfoChecklist,
   type InsertConference,
   type InsertWmsItem,
   type InsertDriverBase,
@@ -43,6 +46,8 @@ export interface IStorage {
   getMetricsByRoom(): Promise<{ room: string; avgMinutes: number; count: number }[]>;
   getDriversWithoutRoom(): Promise<{ driverId: string; maps: string[]; count: number }[]>;
   getDriverRanking(): Promise<{ room: string; top: any[]; bottom: any[] }[]>;
+  bulkInsertGinfoChecklist(items: InsertGinfoChecklist[]): Promise<void>;
+  getGinfoChecklist(): Promise<GinfoChecklist[]>;
   getAdherenceReport(): Promise<{
     totalMaps: number;
     conferencedMaps: number;
@@ -192,6 +197,16 @@ export class DatabaseStorage implements IStorage {
     }
 
     return result.sort((a, b) => a.room.localeCompare(b.room));
+  }
+
+  async bulkInsertGinfoChecklist(items: InsertGinfoChecklist[]): Promise<void> {
+    if (items.length === 0) return;
+    // Acumula sem truncar — cada upload adiciona novos registros
+    await db.insert(ginfoChecklist).values(items);
+  }
+
+  async getGinfoChecklist(): Promise<GinfoChecklist[]> {
+    return await db.select().from(ginfoChecklist).orderBy(desc(ginfoChecklist.importedAt));
   }
 
   async deleteConference(id: number): Promise<void> {
