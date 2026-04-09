@@ -35,16 +35,16 @@ function AdminPasswordGate({ onSuccess }: { onSuccess: () => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
-      const json = await res.json();
-      if (json.ok) {
+      if (res.ok) {
         setUnlocked();
         onSuccess();
-      } else {
-        setError(json.message ?? "Senha incorreta. Tente novamente.");
-        setPassword("");
+        return;
       }
+      // Senha errada
+      setError("Senha incorreta. Tente novamente.");
+      setPassword("");
     } catch {
-      setError("Erro de conexão. Tente novamente.");
+      setError("Servidor indisponível. Aguarde alguns segundos e tente de novo.");
     } finally {
       setLoading(false);
     }
