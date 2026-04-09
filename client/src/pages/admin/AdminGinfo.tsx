@@ -172,10 +172,21 @@ export default function AdminGinfo() {
                     </td>
                     <td className="px-4 py-3 text-gray-700">{item.realizadoPor || "—"}</td>
                     <td className="px-4 py-3">
-                      <span className="flex items-center gap-1 text-gray-800 font-mono font-medium">
-                        <Clock className="w-3.5 h-3.5 text-gray-400" />
-                        {item.tempo || "—"}
-                      </span>
+                      {(() => {
+                        const parts = (item.tempo || "").split(":").map(Number);
+                        const totalMin = parts.length === 3
+                          ? parts[0] * 60 + parts[1] + parts[2] / 60
+                          : parts.length === 2
+                            ? parts[0] + parts[1] / 60
+                            : null;
+                        const isShort = totalMin !== null && totalMin < 4;
+                        return (
+                          <span className={`flex items-center gap-1 font-mono font-medium ${isShort ? "text-red-600" : "text-gray-800"}`}>
+                            <Clock className={`w-3.5 h-3.5 ${isShort ? "text-red-400" : "text-gray-400"}`} />
+                            {item.tempo || "—"}
+                          </span>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}
