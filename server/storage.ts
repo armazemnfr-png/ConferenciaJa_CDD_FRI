@@ -23,6 +23,14 @@ import {
 } from "@shared/schema";
 import { eq, sql, and, desc } from "drizzle-orm";
 
+// Normaliza matrícula: remove zeros à esquerda de strings numéricas
+// Ex: "006" → "6", "06" → "6", "6" → "6", "ABC" → "ABC"
+function normalizeReg(s: string): string {
+  const trimmed = (s || "").trim();
+  const num = parseInt(trimmed, 10);
+  return isNaN(num) ? trimmed : String(num);
+}
+
 export type ConferenceWithMetrics = Conference;
 
 export interface IStorage {
@@ -86,7 +94,7 @@ export class DatabaseStorage implements IStorage {
     // 3. Motoristas pelo driverBase para resolver nomes
     const allDrivers = await db.select().from(driverBase);
     const nameByReg = new Map<string, string>();
-    allDrivers.forEach(d => nameByReg.set(d.registration.trim(), d.name));
+    allDrivers.forEach(d => nameByReg.set(normalizeReg(d.registration), d.name));
 
     // 4. Promax para motoristas dos mapas que nunca foram iniciados
     const allPromax = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista }).from(promaxData);
@@ -116,7 +124,7 @@ export class DatabaseStorage implements IStorage {
       const driverId = conf?.driverId ?? null;
       let driverName: string | null = null;
       if (driverId) {
-        driverName = nameByReg.get(driverId.trim()) ?? null;
+        driverName = nameByReg.get(normalizeReg(driverId)) ?? null;
       }
       // Fallback: promax
       if (!driverName) {
@@ -148,7 +156,7 @@ export class DatabaseStorage implements IStorage {
     // Todos os motoristas com sala cadastrada
     const allDrivers = await db.select().from(driverBase);
     const driverMap = new Map<string, { name: string; room: string }>();
-    allDrivers.forEach(d => driverMap.set(d.registration.trim(), { name: d.name, room: d.room }));
+    allDrivers.forEach(d => driverMap.set(normalizeReg(d.registration), { name: d.name, room: d.room }));
 
     // Conferências finalizadas com tempo válido
     const allConfs = await db.select().from(conferences)
@@ -160,7 +168,7 @@ export class DatabaseStorage implements IStorage {
       if (!conf.startTime || !conf.endTime) continue;
       const durationMin = (new Date(conf.endTime).getTime() - new Date(conf.startTime).getTime()) / 60000;
       if (durationMin <= 0 || durationMin > 600) continue;
-      const reg = (conf.driverId || "").trim();
+      const reg = normalizeReg(conf.driverId || "");
       if (!reg) continue;
       const cur = driverStats.get(reg) ?? { totalMin: 0, count: 0 };
       driverStats.set(reg, { totalMin: cur.totalMin + durationMin, count: cur.count + 1 });
@@ -347,8 +355,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDriverByRegistration(registration: string): Promise<DriverBase | undefined> {
-    const [driver] = await db.select().from(driverBase).where(eq(driverBase.registration, registration));
-    return driver;
+    const normalized = normalizeReg(registration);
+    // Busca todos e compara normalizados (resolve "006" == "6")
+    const all = await db.select().from(driverBase);
+    return all.find(d => normalizeReg(d.registration) === normalized);
   }
 
   async getAllDrivers(): Promise<DriverBase[]> {
@@ -366,14 +376,14 @@ export class DatabaseStorage implements IStorage {
 
   async getDriversWithoutRoom(): Promise<{ driverId: string; maps: string[]; count: number }[]> {
     const drivers = await db.select().from(driverBase);
-    const knownRegistrations = new Set(drivers.map(d => d.registration.trim()));
+    const knownRegistrations = new Set(drivers.map(d => normalizeReg(d.registration)));
 
     const completed = await db.select().from(conferences)
       .where(sql`status = 'completed'`);
 
     const map = new Map<string, string[]>();
     for (const conf of completed) {
-      const id = conf.driverId?.trim() ?? "";
+      const id = normalizeReg(conf.driverId ?? "");
       if (!id || knownRegistrations.has(id)) continue;
       const existing = map.get(id) ?? [];
       existing.push(conf.mapNumber);
@@ -391,7 +401,7 @@ export class DatabaseStorage implements IStorage {
     const roomByRegistration = new Map<string, string>();
     for (const d of drivers) {
       if (d.registration && d.room) {
-        roomByRegistration.set(d.registration.trim(), d.room.trim());
+        roomByRegistration.set(normalizeReg(d.registration), d.room.trim());
       }
     }
 
@@ -402,7 +412,7 @@ export class DatabaseStorage implements IStorage {
     // Agrupa por sala
     const roomMap = new Map<string, { total: number; count: number }>();
     for (const conf of completed) {
-      const room = roomByRegistration.get(conf.driverId?.trim() ?? "") ?? "Sem Sala";
+      const room = roomByRegistration.get(normalizeReg(conf.driverId ?? "")) ?? "Sem Sala";
       const diffMs = new Date(conf.endTime!).getTime() - new Date(conf.startTime!).getTime();
       const diffMin = diffMs / 60000;
       if (diffMin < 0.1 || diffMin > 360) continue; // descarta outliers
