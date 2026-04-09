@@ -1,15 +1,140 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Upload, LogOut, Truck, Play, ArrowLeft, Home, BarChart2 } from "lucide-react";
+import { LayoutDashboard, Upload, LogOut, Truck, Play, ArrowLeft, Home, BarChart2, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface AdminLayoutProps {
   children: ReactNode;
 }
 
+function useAdminAuth() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery<{ authenticated: boolean }>({
+    queryKey: ["/api/admin/me"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/me", { credentials: "include" });
+      return res.json();
+    },
+    staleTime: 1000 * 60 * 10,
+    retry: false,
+  });
+  const loginMutation = useMutation({
+    mutationFn: async (password: string) => {
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ password }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message ?? "Erro ao autenticar");
+      return json;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/me"] }),
+  });
+  return { isAuthenticated: !!data?.authenticated, isLoading, loginMutation };
+}
+
+function AdminPasswordGate({ onSuccess }: { onSuccess: () => void }) {
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState("");
+  const { loginMutation } = useAdminAuth();
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    try {
+      await loginMutation.mutateAsync(password);
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message ?? "Senha incorreta.");
+      setPassword("");
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-950 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/20 mb-4">
+            <Truck className="h-8 w-8 text-primary" />
+          </div>
+          <h1 className="text-2xl font-bold text-white">ConfereJá</h1>
+          <p className="text-slate-400 text-sm mt-1">Painel Administrativo</p>
+        </div>
+
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-2xl p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center">
+              <Lock className="h-4 w-4 text-accent" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-slate-800">Acesso restrito</h2>
+              <p className="text-xs text-slate-400">Informe a senha de administrador</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="relative">
+              <input
+                type={show ? "text" : "password"}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Senha de acesso"
+                autoFocus
+                data-testid="input-admin-password"
+                className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => setShow(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+
+            {error && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2" data-testid="text-login-error">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loginMutation.isPending || !password}
+              data-testid="button-admin-login"
+              className="w-full py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+            >
+              {loginMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Verificando...
+                </>
+              ) : (
+                "Entrar no Painel"
+              )}
+            </button>
+          </form>
+        </div>
+
+        <p className="text-center text-xs text-slate-500 mt-4">
+          Apenas administradores autorizados têm acesso.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function AdminLayout({ children }: AdminLayoutProps) {
   const [location] = useLocation();
   const { logout, user } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAdminAuth();
+  const qc = useQueryClient();
 
   const navigation = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -22,10 +147,26 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   // Determina destino e label do botão voltar
   const isRoot = location === "/admin";
   const backHref = isRoot ? "/" : "/admin";
-  const backLabel = isRoot ? "Início" : "Painel Admin";
 
   function handleBack() {
     window.history.back();
+  }
+
+  // Gate de autenticação
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-950 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <AdminPasswordGate
+        onSuccess={() => qc.invalidateQueries({ queryKey: ["/api/admin/me"] })}
+      />
+    );
   }
 
   return (

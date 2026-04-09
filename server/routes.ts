@@ -9,20 +9,27 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  // --- ROTAS DE EMERGÊNCIA PARA DESTRAVAR O FRONTEND ---
-  // Elas respondem "sucesso" para qualquer tentativa de login do sistema antigo
-  app.post("/api/admin/login", (req, res) => {
-    res.json({ success: true, message: "Acesso liberado" });
+  // --- PROTEÇÃO DE SENHA DO PAINEL ADMIN ---
+  app.post("/api/admin/login", (req: Request, res: Response) => {
+    const { password } = req.body ?? {};
+    const correctPassword = process.env.ADMIN_PASSWORD;
+    if (!correctPassword) {
+      return res.status(500).json({ success: false, message: "Senha não configurada no servidor." });
+    }
+    if (password === correctPassword) {
+      (req.session as any).adminAuthenticated = true;
+      return res.json({ success: true });
+    }
+    return res.status(401).json({ success: false, message: "Senha incorreta." });
   });
 
-  app.get("/api/admin/me", (req, res) => {
-    res.json({ 
-      authenticated: true, 
-      user: { username: "admin", role: "admin" } 
-    });
+  app.get("/api/admin/me", (req: Request, res: Response) => {
+    const authenticated = !!(req.session as any)?.adminAuthenticated;
+    res.json({ authenticated });
   });
 
-  app.post("/api/admin/logout", (req, res) => {
+  app.post("/api/admin/logout", (req: Request, res: Response) => {
+    (req.session as any).adminAuthenticated = false;
     res.json({ success: true });
   });
 
