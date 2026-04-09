@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { ClipboardCheck, Search, Clock, Map, Users, User, Download } from "lucide-react";
+import { ClipboardCheck, Search, Clock, Map, Users, User, Download, CalendarDays, X } from "lucide-react";
 import type { GinfoChecklist } from "@shared/schema";
 
 export default function AdminGinfo() {
   const [search, setSearch] = useState("");
   const [filterEquipe, setFilterEquipe] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const { data: items = [], isLoading } = useQuery<GinfoChecklist[]>({
     queryKey: ["/api/ginfo"],
@@ -14,7 +16,28 @@ export default function AdminGinfo() {
 
   const equipes = Array.from(new Set(items.map((i) => i.equipe).filter(Boolean))).sort();
 
-  const filtered = items.filter((item) => {
+  const hasDateFilter = dateFrom !== "" || dateTo !== "";
+
+  // Filtro de período — base para métricas e tabela
+  const dateFiltered = items.filter((item) => {
+    if (!hasDateFilter) return true;
+    const importedDate = item.importedAt ? new Date(item.importedAt) : null;
+    if (!importedDate) return true;
+    // Zera hora para comparar só a data
+    const day = new Date(importedDate.getFullYear(), importedDate.getMonth(), importedDate.getDate());
+    if (dateFrom) {
+      const from = new Date(dateFrom + "T00:00:00");
+      if (day < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo + "T00:00:00");
+      if (day > to) return false;
+    }
+    return true;
+  });
+
+  // Filtro completo — para a tabela
+  const filtered = dateFiltered.filter((item) => {
     const matchSearch =
       search === "" ||
       item.mapa.toLowerCase().includes(search.toLowerCase()) ||
@@ -23,6 +46,13 @@ export default function AdminGinfo() {
     const matchEquipe = filterEquipe === "all" || item.equipe === filterEquipe;
     return matchSearch && matchEquipe;
   });
+
+  const clearFilters = () => {
+    setDateFrom("");
+    setDateTo("");
+    setSearch("");
+    setFilterEquipe("all");
+  };
 
   const handleExport = () => {
     if (filtered.length === 0) return;
@@ -55,14 +85,16 @@ export default function AdminGinfo() {
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
 
-  // Média geral (todos os registros)
-  const allSeconds = items.map((i) => toSeconds(i.tempo)).filter((v): v is number => v !== null);
+  // Média geral — usa dateFiltered (período selecionado, todas as equipes)
+  const allSeconds = dateFiltered.map((i) => toSeconds(i.tempo)).filter((v): v is number => v !== null);
   const globalAvgSec = allSeconds.length > 0
     ? allSeconds.reduce((a, b) => a + b, 0) / allSeconds.length
     : null;
 
-  const avgByEquipe = equipes.map((eq) => {
-    const group = items.filter((i) => i.equipe === eq);
+  // Média por equipe — também usa dateFiltered
+  const equipesDf = Array.from(new Set(dateFiltered.map((i) => i.equipe).filter(Boolean))).sort();
+  const avgByEquipe = equipesDf.map((eq) => {
+    const group = dateFiltered.filter((i) => i.equipe === eq);
     const secs = group.map((i) => toSeconds(i.tempo)).filter((v): v is number => v !== null);
     const avgSec = secs.length > 0 ? secs.reduce((a, b) => a + b, 0) / secs.length : null;
     return { equipe: eq, count: group.length, avgSec };
@@ -133,29 +165,66 @@ export default function AdminGinfo() {
         )}
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar mapa, motorista ou equipe..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              data-testid="input-search-ginfo"
-              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-            />
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
+          {/* Linha de período */}
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-600 shrink-0">
+              <CalendarDays className="w-4 h-4 text-blue-500" />
+              Período
+            </div>
+            <div className="flex flex-1 items-center gap-2">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                data-testid="input-date-from"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+              <span className="text-gray-400 text-sm">até</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                data-testid="input-date-to"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </div>
+            {(hasDateFilter || search || filterEquipe !== "all") && (
+              <button
+                onClick={clearFilters}
+                data-testid="button-clear-filters"
+                className="flex items-center gap-1 px-3 py-2 text-xs text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-300 rounded-lg transition"
+              >
+                <X className="w-3.5 h-3.5" /> Limpar filtros
+              </button>
+            )}
           </div>
-          <select
-            value={filterEquipe}
-            onChange={(e) => setFilterEquipe(e.target.value)}
-            data-testid="select-filter-equipe"
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-          >
-            <option value="all">Todas as equipes</option>
-            {equipes.map((eq) => (
-              <option key={eq} value={eq}>{eq}</option>
-            ))}
-          </select>
+
+          {/* Linha de busca e equipe */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar mapa, motorista ou equipe..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                data-testid="input-search-ginfo"
+                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </div>
+            <select
+              value={filterEquipe}
+              onChange={(e) => setFilterEquipe(e.target.value)}
+              data-testid="select-filter-equipe"
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              <option value="all">Todas as equipes</option>
+              {equipes.map((eq) => (
+                <option key={eq} value={eq}>{eq}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Table */}
