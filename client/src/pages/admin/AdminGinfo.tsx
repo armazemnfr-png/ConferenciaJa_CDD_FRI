@@ -4,7 +4,7 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { ClipboardCheck, Search, Clock, Map, Users, User, Download, CalendarDays, X } from "lucide-react";
 import type { GinfoChecklist } from "@shared/schema";
 
-const todayStr = () => new Date().toISOString().split("T")[0];
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
 export default function AdminGinfo() {
   const [search, setSearch] = useState("");

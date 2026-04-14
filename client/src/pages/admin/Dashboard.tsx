@@ -19,7 +19,8 @@ const formatFullTime = (minutes: number | undefined) => {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
-const todayStr = new Date().toISOString().split("T")[0];
+const d0 = new Date();
+const todayStr = `${d0.getFullYear()}-${String(d0.getMonth()+1).padStart(2,'0')}-${String(d0.getDate()).padStart(2,'0')}`;
 
 export default function Dashboard() {
   const [activeFilters, setActiveFilters] = useState({

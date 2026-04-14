@@ -26,7 +26,7 @@ const STATUS_ICON: Record<string, JSX.Element> = {
   not_started: <XCircle className="h-3.5 w-3.5" />,
 };
 
-const todayStr = () => new Date().toISOString().split("T")[0];
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
 export default function AdminAdherencia() {
   const { data, isLoading } = useAdherencia();

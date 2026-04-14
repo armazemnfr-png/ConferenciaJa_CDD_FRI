@@ -16,7 +16,8 @@ export default function ConferencesHistory() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const d0 = new Date();
+  const todayStr = `${d0.getFullYear()}-${String(d0.getMonth()+1).padStart(2,'0')}-${String(d0.getDate()).padStart(2,'0')}`;
 
   // Estado dos campos
   const [search, setSearch] = useState("");
@@ -97,7 +98,11 @@ export default function ConferencesHistory() {
       const matchesDmg = appliedFilters.dmg === "all" ? true : 
                         appliedFilters.dmg === "yes" ? hasDmg : !hasDmg;
 
-      const confDate = conf.startTime ? new Date(conf.startTime).toISOString().split('T')[0] : null;
+      const confDate = (() => {
+        if (!conf.startTime) return null;
+        const d = new Date(conf.startTime);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      })();
       const matchesStart = !appliedFilters.start || (confDate && confDate >= appliedFilters.start);
       const matchesEnd = !appliedFilters.end || (confDate && confDate <= appliedFilters.end);
 
@@ -161,10 +166,19 @@ export default function ConferencesHistory() {
             </Select>
           </div>
 
-          <Button onClick={handleFilter} className="w-full gap-2 font-bold bg-blue-600 hover:bg-blue-700 text-white">
-            <Filter className="w-4 h-4" />
-            Filtrar
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleFilter} className="flex-1 gap-2 font-bold bg-blue-600 hover:bg-blue-700 text-white">
+              <Filter className="w-4 h-4" />
+              Filtrar
+            </Button>
+            <Button variant="outline" onClick={() => {
+              setSearch(""); setDivFilter("all"); setDmgFilter("all");
+              setStartDate(""); setEndDate("");
+              setAppliedFilters({ search: "", div: "all", dmg: "all", start: "", end: "" });
+            }} className="px-3" title="Limpar filtros">
+              <Trash2 className="w-4 h-4 text-slate-400" />
+            </Button>
+          </div>
         </div>
 
         <div className="border rounded-xl bg-white shadow-sm overflow-hidden">
@@ -180,6 +194,17 @@ export default function ConferencesHistory() {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {filteredData.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-16 text-slate-400">
+                    <div className="flex flex-col items-center gap-2">
+                      <Filter className="w-8 h-8 opacity-30" />
+                      <p className="font-semibold">Nenhuma conferência encontrada</p>
+                      <p className="text-sm">Ajuste o período ou limpe os filtros para ver o histórico completo.</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
               {filteredData.map((conf) => {
                 const hasDiv = conf.hasDivergence === true || conf.hasDivergence === 1;
                 const hasDmg = conf.hasDamage === true || conf.hasDamage === 1;
