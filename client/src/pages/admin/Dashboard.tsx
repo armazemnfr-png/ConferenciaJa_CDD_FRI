@@ -19,10 +19,12 @@ const formatFullTime = (minutes: number | undefined) => {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
+const todayStr = new Date().toISOString().split("T")[0];
+
 export default function Dashboard() {
   const [activeFilters, setActiveFilters] = useState({
-    startDate: "",
-    endDate: "",
+    startDate: todayStr,
+    endDate: todayStr,
     driverId: "",
     mapNumber: "",
   });

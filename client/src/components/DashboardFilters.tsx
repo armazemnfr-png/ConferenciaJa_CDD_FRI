@@ -1,13 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, Calendar, User, Map as MapIcon, FilterX } from "lucide-react";
+
+const todayStr = () => new Date().toISOString().split("T")[0];
 
 export default function DashboardFilters({ onFilter }: { onFilter: (filters: any) => void }) {
   const [filters, setFilters] = useState({
-    startDate: "",
-    endDate: "",
+    startDate: todayStr(),
+    endDate: todayStr(),
     driverId: "",
     mapNumber: "",
   });
+
+  // Aplica o filtro de hoje automaticamente ao montar
+  useEffect(() => {
+    onFilter(filters);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleApply = () => {
     onFilter(filters);

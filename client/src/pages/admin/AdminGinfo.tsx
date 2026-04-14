@@ -4,11 +4,13 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { ClipboardCheck, Search, Clock, Map, Users, User, Download, CalendarDays, X } from "lucide-react";
 import type { GinfoChecklist } from "@shared/schema";
 
+const todayStr = () => new Date().toISOString().split("T")[0];
+
 export default function AdminGinfo() {
   const [search, setSearch] = useState("");
   const [filterEquipe, setFilterEquipe] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState(todayStr());
+  const [dateTo, setDateTo] = useState(todayStr());
 
   const { data: items = [], isLoading } = useQuery<GinfoChecklist[]>({
     queryKey: ["/api/ginfo"],

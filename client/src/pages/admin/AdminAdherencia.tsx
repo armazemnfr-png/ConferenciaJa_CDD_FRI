@@ -26,12 +26,14 @@ const STATUS_ICON: Record<string, JSX.Element> = {
   not_started: <XCircle className="h-3.5 w-3.5" />,
 };
 
+const todayStr = () => new Date().toISOString().split("T")[0];
+
 export default function AdminAdherencia() {
   const { data, isLoading } = useAdherencia();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState(todayStr());
+  const [dateTo, setDateTo] = useState(todayStr());
 
   const hasDateFilter = dateFrom !== "" || dateTo !== "";
 
@@ -43,11 +45,12 @@ export default function AdminAdherencia() {
   };
 
   // Filtro de período aplicado a completedAt
+  // Mapas não iniciados/em andamento são sempre incluídos (representam o plano do dia)
   const dateFiltered = useMemo(() => {
     if (!data) return [];
     if (!hasDateFilter) return data.maps;
     return data.maps.filter(m => {
-      if (!m.completedAt) return false; // sem data = fora do período
+      if (!m.completedAt) return true; // pendentes: sempre visíveis
       const d = new Date(m.completedAt);
       const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
       if (dateFrom && day < new Date(dateFrom + "T00:00:00")) return false;

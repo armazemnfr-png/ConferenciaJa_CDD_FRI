@@ -16,20 +16,22 @@ export default function ConferencesHistory() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
   // Estado dos campos
   const [search, setSearch] = useState("");
   const [divFilter, setDivFilter] = useState("all");
   const [dmgFilter, setDmgFilter] = useState("all");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
 
-  // Estado dos filtros ATIVOS
+  // Estado dos filtros ATIVOS — já inicializa com hoje
   const [appliedFilters, setAppliedFilters] = useState({
     search: "",
     div: "all",
     dmg: "all",
-    start: "",
-    end: ""
+    start: todayStr,
+    end: todayStr
   });
 
   const { data: conferences } = useConferences();
