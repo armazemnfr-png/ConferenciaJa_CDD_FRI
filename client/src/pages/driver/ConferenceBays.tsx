@@ -78,9 +78,12 @@ const ConferenceBays = () => {
     setItems(prev => prev.map(item => {
       if (item.id === id) {
         const newChecked = !item.isChecked;
-        const finalQty = item.qtd_contada !== undefined ? item.qtd_contada : (newChecked ? item.qtd : undefined);
+        const hasExplicitPartialCount = item.qtd_contada !== undefined && item.qtd_contada !== null && item.qtd_contada > 0;
+        const finalQty = newChecked
+          ? (hasExplicitPartialCount ? item.qtd_contada : item.qtd)
+          : undefined;
         saveToDatabase(id, { isChecked: newChecked, checkedQuantity: finalQty });
-        return { ...item, isChecked: newChecked, conferido: newChecked, qtd_contada: finalQty };
+        return { ...item, isChecked: newChecked, conferido: newChecked, qtd_contada: newChecked ? finalQty : undefined };
       }
       return item;
     }));

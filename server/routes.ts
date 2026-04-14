@@ -358,7 +358,7 @@ export async function registerRoutes(
         bay_number: item.bayNumber,
         sequence: item.sequence,
         unitOfMeasure: item.unitOfMeasure,
-        qtd_contada: item.checkedQuantity ?? undefined,
+        qtd_contada: (item.checkedQuantity !== null && item.checkedQuantity !== undefined && item.checkedQuantity > 0) ? item.checkedQuantity : undefined,
         temAvaria: !!item.hasDamage,
       }));
 
