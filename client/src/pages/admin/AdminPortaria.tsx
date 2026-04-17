@@ -122,7 +122,7 @@ export default function AdminPortaria() {
             <DoorOpen className="h-12 w-12 opacity-20" />
             <p className="text-base font-medium">
               {data && data.length === 0
-                ? "Nenhum dado encontrado. Importe o relatório PW (Promax) na aba Upload."
+                ? "Nenhum dado encontrado. Certifique-se de que o relatório PW (Promax) e o relatório WMS foram importados."
                 : "Nenhum resultado para os filtros selecionados."}
             </p>
           </div>

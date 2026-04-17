@@ -370,6 +370,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPortariaData(): Promise<{ mapa: string; motorista: string; nome: string; sala: string; dtOper: string; hrOper: string }[]> {
+    // Busca apenas mapas que existam no WMS (relatório Detalhe Separação = mapas de rota)
+    const wmsRows = await db.selectDistinct({ mapNumber: wmsItems.mapNumber }).from(wmsItems);
+    const wmsMaps = new Set(wmsRows.map(r => r.mapNumber.trim().toUpperCase()));
+
     const entries = await db.select().from(promaxData)
       .where(sql`upper(trim(${promaxData.fase})) = 'SAIDA CDD/FAB'`);
 
@@ -377,17 +381,19 @@ export class DatabaseStorage implements IStorage {
     const driverMap = new Map<string, { name: string; room: string }>();
     drivers.forEach(d => driverMap.set(normalizeReg(d.registration), { name: d.name, room: d.room }));
 
-    return entries.map(entry => {
-      const info = driverMap.get(normalizeReg(entry.motorista || ""));
-      return {
-        mapa: entry.mapa || "",
-        motorista: entry.motorista || "",
-        nome: info?.name || "–",
-        sala: info?.room || "–",
-        dtOper: entry.dtOper || "",
-        hrOper: entry.hrOper || "",
-      };
-    }).sort((a, b) => a.hrOper.localeCompare(b.hrOper));
+    return entries
+      .filter(entry => wmsMaps.has((entry.mapa || "").trim().toUpperCase()))
+      .map(entry => {
+        const info = driverMap.get(normalizeReg(entry.motorista || ""));
+        return {
+          mapa: entry.mapa || "",
+          motorista: entry.motorista || "",
+          nome: info?.name || "–",
+          sala: info?.room || "–",
+          dtOper: entry.dtOper || "",
+          hrOper: entry.hrOper || "",
+        };
+      }).sort((a, b) => a.hrOper.localeCompare(b.hrOper));
   }
 
   async getDriverByRegistration(registration: string): Promise<DriverBase | undefined> {
