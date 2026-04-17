@@ -79,6 +79,16 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/tml", async (req, res) => {
+    try {
+      const data = await storage.getTmlData();
+      res.json(data);
+    } catch (err) {
+      console.error("Erro ao calcular TML:", err);
+      res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
   app.get("/api/portaria", async (req, res) => {
     try {
       const data = await storage.getPortariaData();

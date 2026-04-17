@@ -19,9 +19,31 @@ import {
   type InsertMatinal,
   type UpdateConferenceRequest,
   type UpdateWmsItemRequest,
-  type DashboardMetrics
+  type DashboardMetrics,
+  type TmlRecord
 } from "@shared/schema";
 import { eq, sql, and, desc } from "drizzle-orm";
+
+// --- Helpers TML ---
+function tmlParseDt(dtOper: string): Date | null {
+  if (!dtOper) return null;
+  const m = dtOper.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  const m2 = dtOper.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m2) return new Date(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]));
+  return null;
+}
+function tmlTimeToMin(t: string): number {
+  if (!t) return 0;
+  const p = t.split(":");
+  return parseInt(p[0] || "0") * 60 + parseInt(p[1] || "0");
+}
+function tmlSalaMatch(roomName: string, equipe: string): boolean {
+  if (!roomName || !equipe) return false;
+  const r = roomName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const e = equipe.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return r.includes(e) || e.includes(r);
+}
 
 // Normaliza matrícula: remove zeros à esquerda de strings numéricas
 // Ex: "006" → "6", "06" → "6", "6" → "6", "ABC" → "ABC"
@@ -57,6 +79,7 @@ export interface IStorage {
   getDriverRanking(filters?: { startDate?: string; endDate?: string }): Promise<{ room: string; top: any[]; bottom: any[] }[]>;
   bulkInsertGinfoChecklist(items: InsertGinfoChecklist[]): Promise<void>;
   getGinfoChecklist(): Promise<GinfoChecklist[]>;
+  getTmlData(): Promise<TmlRecord[]>;
   getAdherenceReport(): Promise<{
     totalMaps: number;
     conferencedMaps: number;
@@ -215,6 +238,79 @@ export class DatabaseStorage implements IStorage {
 
   async getGinfoChecklist(): Promise<GinfoChecklist[]> {
     return await db.select().from(ginfoChecklist).orderBy(desc(ginfoChecklist.importedAt));
+  }
+
+  async getTmlData(): Promise<TmlRecord[]> {
+    const portariaList = await this.getPortariaData();
+    const ginfoAll = await db.select().from(ginfoChecklist);
+    const matinalAll = await db.select().from(matinals);
+
+    // Índice ginfo por mapa (pega o mais recente)
+    const ginfoByMapa = new Map<string, GinfoChecklist>();
+    [...ginfoAll].reverse().forEach(g => ginfoByMapa.set(g.mapa.trim().toUpperCase(), g));
+
+    const results: TmlRecord[] = [];
+
+    for (const portaria of portariaList) {
+      const ginfo = ginfoByMapa.get(portaria.mapa.trim().toUpperCase());
+
+      const portariaDate = tmlParseDt(portaria.dtOper);
+
+      // Acha matinal pelo equipe/sala e data
+      const sala = ginfo?.equipe || portaria.sala || "";
+      const matchingMatinal = portariaDate ? matinalAll.find(m => {
+        const md = new Date(m.date || m.actualEndTime);
+        return (
+          tmlSalaMatch(m.roomName, sala) &&
+          md.getFullYear() === portariaDate.getFullYear() &&
+          md.getMonth() === portariaDate.getMonth() &&
+          md.getDate() === portariaDate.getDate()
+        );
+      }) : undefined;
+
+      // Matinal
+      const matinalMin = matchingMatinal?.durationMinutes ?? 0;
+      const matinalEndMin = matchingMatinal
+        ? (new Date(matchingMatinal.actualEndTime).getHours() * 60 + new Date(matchingMatinal.actualEndTime).getMinutes())
+        : 0;
+
+      // Checklist
+      const checklistStartMin = ginfo?.hrInicio ? tmlTimeToMin(ginfo.hrInicio) : 0;
+      const checklistEndMin = ginfo?.hrFinal ? tmlTimeToMin(ginfo.hrFinal) : 0;
+      const checklistMin = (checklistEndMin > 0 && checklistStartMin > 0)
+        ? Math.max(0, checklistEndMin - checklistStartMin)
+        : (ginfo?.tempo ? tmlTimeToMin(ginfo.tempo) : 0);
+
+      // Matinal → Pátio
+      const matinalPatioMin = (checklistStartMin > 0 && matinalEndMin > 0)
+        ? Math.max(0, checklistStartMin - matinalEndMin)
+        : 0;
+
+      // Pátio → Portaria
+      const portariaMin = portaria.hrOper ? tmlTimeToMin(portaria.hrOper) : 0;
+      const effectiveEnd = checklistEndMin || (checklistStartMin + checklistMin);
+      const patioPortariaMin = (portariaMin > 0 && effectiveEnd > 0)
+        ? Math.max(0, portariaMin - effectiveEnd)
+        : 0;
+
+      results.push({
+        mapa: portaria.mapa,
+        motorista: portaria.motorista,
+        nome: portaria.nome,
+        sala: ginfo?.equipe || portaria.sala || "–",
+        dtOper: portaria.dtOper,
+        hrPortaria: portaria.hrOper,
+        hrInicio: ginfo?.hrInicio || "",
+        hrFinal: ginfo?.hrFinal || "",
+        matinalMin,
+        matinalPatioMin,
+        checklistMin,
+        patioPortariaMin,
+        tmlMin: matinalMin + matinalPatioMin + checklistMin + patioPortariaMin,
+      });
+    }
+
+    return results;
   }
 
   async deleteConference(id: number): Promise<void> {

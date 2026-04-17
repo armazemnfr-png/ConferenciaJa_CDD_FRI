@@ -75,8 +75,7 @@ const UploadDados = () => {
             })).filter((item: any) => item.registration && item.registration !== "");
           }
           else if (activeTab === 'GINFO') {
-            // Colunas: G=REALIZADO POR, H=EQUIPE, N=MAPA, T=TEMPO
-            // Parseia por nome de cabeçalho, com fallback por índice (header: false)
+            // Colunas: G=REALIZADO POR, H=EQUIPE, N=MAPA, R=HR INICIO, S=HR FINAL, T=TEMPO
             items = results.data.map((row: any) => {
               const realizadoPor = String(
                 row['REALIZADO POR'] || row['Realizado Por'] || row['realizado_por'] || ""
@@ -90,7 +89,13 @@ const UploadDados = () => {
               const tempo = String(
                 row['TEMPO'] || row['Tempo'] || row['tempo'] || ""
               ).trim();
-              return { realizadoPor, equipe, mapa, tempo };
+              const hrInicio = String(
+                row['HR INICIO'] || row['Hr Inicio'] || row['HR_INICIO'] || row['HrInicio'] || row['HRINICIO'] || ""
+              ).trim();
+              const hrFinal = String(
+                row['HR FINAL'] || row['Hr Final'] || row['HR_FINAL'] || row['HrFinal'] || row['HRFINAL'] || ""
+              ).trim();
+              return { realizadoPor, equipe, mapa, tempo, hrInicio, hrFinal };
             }).filter((item: any) => item.mapa && item.mapa !== "undefined" && item.tempo);
           }
 

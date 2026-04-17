@@ -23,6 +23,7 @@ import AdminConferences from "@/pages/admin/AdminConferences";
 import AdminAdherencia from "@/pages/admin/AdminAdherencia";
 import AdminGinfo from "@/pages/admin/AdminGinfo";
 import AdminPortaria from "@/pages/admin/AdminPortaria";
+import AdminTml from "@/pages/admin/AdminTml";
 
 // Roteiro do Supervisor
 import MatinalPlay from "@/pages/supervisor/MatinalPlay";
@@ -49,6 +50,7 @@ function Router() {
       <Route path="/admin/adherencia" component={AdminAdherencia} />
       <Route path="/admin/ginfo" component={AdminGinfo} />
       <Route path="/admin/portaria" component={AdminPortaria} />
+      <Route path="/admin/tml" component={AdminTml} />
 
       {/* Rota 404 - Caso o usuário digite algo inexistente */}
       <Route component={NotFound} />

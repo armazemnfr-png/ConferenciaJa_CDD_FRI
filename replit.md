@@ -47,6 +47,15 @@ Preferred communication style: Simple, everyday language.
 
 **Note**: There is also a legacy `server.js` file at root and a `prisma/` directory referencing Prisma — these are leftover artifacts. The active system uses Drizzle ORM exclusively. The legacy `server.js` should not be used.
 
+### TML (Tempo de Manhã de Loja)
+`AdminTml` page at `/admin/tml` computes 4 components per mapa from cross-referenced data:
+- **Matinal** — `matinals.durationMinutes` (matched by equipe substring vs roomName, same day as portaria exit)
+- **Matinal→Pátio** — `ginfo.hrInicio` minus matinal `actualEndTime`
+- **Checklist** — `ginfo.hrFinal` minus `ginfo.hrInicio` (fallback: `ginfo.tempo`)
+- **Pátio→Portaria** — `promax.hrOper` (SAIDA CDD/FAB) minus `ginfo.hrFinal`
+
+The `ginfo_checklist` table has `hr_inicio` and `hr_final` text columns. The GINFO upload tab extracts HR INICIO and HR FINAL columns. Room matching uses case-insensitive substring normalization.
+
 ### Portaria (Gate Exit Tracking)
 The `promax_data` table stores two types of records from the Promax PW report:
 - `fase = "CARREGADO"` — used for driver login (maps driver registration to their map)

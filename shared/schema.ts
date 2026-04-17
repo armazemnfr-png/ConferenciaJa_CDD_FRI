@@ -90,6 +90,8 @@ export const ginfoChecklist = pgTable("ginfo_checklist", {
   equipe: text("equipe").notNull(),
   mapa: text("mapa").notNull(),
   tempo: text("tempo").notNull(),
+  hrInicio: text("hr_inicio"),
+  hrFinal: text("hr_final"),
   importedAt: timestamp("imported_at").defaultNow(),
 });
 
@@ -128,6 +130,22 @@ export type CreateConferenceRequest = {
 
 export type UpdateConferenceRequest = Partial<InsertConference>;
 export type UpdateWmsItemRequest = z.infer<typeof updateWmsItemSchema>;
+
+export interface TmlRecord {
+  mapa: string;
+  motorista: string;
+  nome: string;
+  sala: string;
+  dtOper: string;
+  hrPortaria: string;
+  hrInicio: string;
+  hrFinal: string;
+  matinalMin: number;
+  matinalPatioMin: number;
+  checklistMin: number;
+  patioPortariaMin: number;
+  tmlMin: number;
+}
 
 export interface DashboardMetrics {
   totalConferences: number;
