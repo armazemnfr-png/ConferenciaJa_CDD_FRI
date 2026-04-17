@@ -64,6 +64,7 @@ const UploadDados = () => {
               motorista: String(item['Motorista'] || "").trim(),
               veiculo: String(item['Veiculo'] || item['Veículo'] || "").trim(),
               placa: String(item['Placa'] || "").trim(),
+              tipoMapa: String(item['TipoMapa'] || item['Tipo Mapa'] || item['Tipo_Mapa'] || item['tipo_mapa'] || "").trim(),
             })).filter((item: any) => item.mapa && item.fase);
           } 
           else if (activeTab === 'MOT') {

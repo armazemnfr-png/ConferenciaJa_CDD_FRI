@@ -47,7 +47,7 @@ export interface IStorage {
   bulkInsertWmsItems(items: InsertWmsItem[]): Promise<void>;
   bulkInsertPromaxData(items: any[]): Promise<void>;
   getPromaxByDriver(registration: string): Promise<PromaxData | undefined>;
-  getPortariaData(): Promise<{ mapa: string; motorista: string; nome: string; sala: string; dtOper: string; hrOper: string }[]>;
+  getPortariaData(): Promise<{ mapa: string; motorista: string; nome: string; sala: string; dtOper: string; hrOper: string; tipoMapa: string }[]>;
   bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void>;
   getDriverByRegistration(registration: string): Promise<DriverBase | undefined>;
   getAllDrivers(): Promise<DriverBase[]>;
@@ -361,6 +361,9 @@ export class DatabaseStorage implements IStorage {
           fase: "SAIDA CDD/FAB",
           hrOper: String(item.hrOper || item.HrOper || ""),
           dtOper: String(item.dtOper || item.DtOper || ""),
+          tipoMapa: String(item.tipoMapa || item.TipoMapa || item['Tipo Mapa'] || ""),
+          veiculo: String(item.veiculo || item.Veiculo || ""),
+          placa: String(item.placa || item.Placa || ""),
         });
       }
     }
@@ -369,20 +372,27 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getPortariaData(): Promise<{ mapa: string; motorista: string; nome: string; sala: string; dtOper: string; hrOper: string }[]> {
-    // Busca apenas mapas que existam no WMS (relatório Detalhe Separação = mapas de rota)
-    const wmsRows = await db.selectDistinct({ mapNumber: wmsItems.mapNumber }).from(wmsItems);
-    const wmsMaps = new Set(wmsRows.map(r => r.mapNumber.trim().toUpperCase()));
-
+  async getPortariaData(): Promise<{ mapa: string; motorista: string; nome: string; sala: string; dtOper: string; hrOper: string; tipoMapa: string }[]> {
+    // Busca todos os registros de saída CDD/Fab do Promax
     const entries = await db.select().from(promaxData)
       .where(sql`upper(trim(${promaxData.fase})) = 'SAIDA CDD/FAB'`);
+
+    // Busca mapas de rota do WMS para cruzamento (somente se WMS tiver dados do mesmo dia)
+    const wmsRows = await db.selectDistinct({ mapNumber: wmsItems.mapNumber }).from(wmsItems);
+    const wmsMaps = new Set(wmsRows.map(r => r.mapNumber.trim().toUpperCase()));
 
     const drivers = await db.select().from(driverBase);
     const driverMap = new Map<string, { name: string; room: string }>();
     drivers.forEach(d => driverMap.set(normalizeReg(d.registration), { name: d.name, room: d.room }));
 
+    // Se o WMS tiver dados E tiver sobreposição com o promax, filtra por WMS
+    // Caso contrário, exibe todos os registros SAIDA CDD/FAB (WMS pode ser de outro dia)
+    const portariaMapas = new Set(entries.map(e => (e.mapa || "").trim().toUpperCase()));
+    const hasOverlap = [...portariaMapas].some(m => wmsMaps.has(m));
+    const shouldFilterByWms = wmsMaps.size > 0 && hasOverlap;
+
     return entries
-      .filter(entry => wmsMaps.has((entry.mapa || "").trim().toUpperCase()))
+      .filter(entry => !shouldFilterByWms || wmsMaps.has((entry.mapa || "").trim().toUpperCase()))
       .map(entry => {
         const info = driverMap.get(normalizeReg(entry.motorista || ""));
         return {
@@ -392,6 +402,7 @@ export class DatabaseStorage implements IStorage {
           sala: info?.room || "–",
           dtOper: entry.dtOper || "",
           hrOper: entry.hrOper || "",
+          tipoMapa: entry.tipoMapa || "",
         };
       }).sort((a, b) => a.hrOper.localeCompare(b.hrOper));
   }
