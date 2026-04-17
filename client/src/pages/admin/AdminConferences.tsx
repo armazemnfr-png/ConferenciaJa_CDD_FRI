@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Search, AlertTriangle, PackageX, CheckCircle2, Clock, Filter, Trash2 } from "lucide-react"; 
+import { Search, AlertTriangle, PackageX, CheckCircle2, Clock, Filter, Trash2, Download } from "lucide-react"; 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -83,6 +83,49 @@ export default function ConferencesHistory() {
     });
   };
 
+  const handleExportCsv = () => {
+    if (filteredData.length === 0) return;
+
+    const rows = filteredData.map(conf => {
+      const hasDiv = conf.hasDivergence === true || conf.hasDivergence === 1;
+      const hasDmg = conf.hasDamage === true || conf.hasDamage === 1;
+      const startTime = conf.startTime ? new Date(conf.startTime) : null;
+      const endTime = conf.endTime ? new Date(conf.endTime) : null;
+      let durMin = "";
+      if (startTime && endTime) {
+        const diffSec = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
+        durMin = String(Math.round(diffSec / 60));
+      }
+      const info = driverMap.get(conf.driverId?.trim() ?? "");
+      return [
+        conf.mapNumber,
+        conf.driverId ?? "",
+        info?.name ?? "",
+        info?.room ?? "",
+        startTime ? format(startTime, "dd/MM/yyyy HH:mm", { locale: ptBR }) : "",
+        endTime ? format(endTime, "dd/MM/yyyy HH:mm", { locale: ptBR }) : "",
+        durMin,
+        hasDiv ? "Sim" : "Não",
+        hasDmg ? "Sim" : "Não",
+        conf.status ?? "",
+      ];
+    });
+
+    const header = ["Mapa", "Matrícula", "Colaborador", "Sala", "Início", "Fim", "Duração (min)", "Divergência", "Avaria", "Status"];
+    const csvContent = [header, ...rows]
+      .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";"))
+      .join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const today = format(new Date(), "yyyy-MM-dd");
+    link.href = url;
+    link.download = `conferencias_${today}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const filteredData = useMemo(() => {
     if (!conferences) return [];
 
@@ -113,9 +156,25 @@ export default function ConferencesHistory() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-slate-900">Histórico de Conferências</h1>
-          <p className="text-slate-500">Consulte conferências finalizadas e ocorrências.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-display font-bold text-slate-900">Histórico de Conferências</h1>
+            <p className="text-slate-500">Consulte conferências finalizadas e ocorrências.</p>
+          </div>
+          <Button
+            onClick={handleExportCsv}
+            disabled={filteredData.length === 0}
+            data-testid="button-export-csv"
+            className="shrink-0 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+          >
+            <Download className="w-4 h-4" />
+            Exportar CSV
+            {filteredData.length > 0 && (
+              <span className="ml-1 bg-white/20 rounded px-1.5 py-0.5 text-xs font-mono">
+                {filteredData.length}
+              </span>
+            )}
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm items-end">
