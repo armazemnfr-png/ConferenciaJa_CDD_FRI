@@ -32,10 +32,10 @@ export default function Dashboard() {
 
   const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics(activeFilters);
   const { data: conferences, isLoading: confLoading } = useConferences(activeFilters);
-  const { data: roomMetrics } = useMetricsByRoom();
-  const { data: driversWithoutRoom } = useDriversWithoutRoom();
+  const { data: roomMetrics } = useMetricsByRoom(activeFilters);
+  const { data: driversWithoutRoom } = useDriversWithoutRoom(activeFilters);
   const { data: drivers } = useDrivers();
-  const { data: ranking } = useDriverRanking();
+  const { data: ranking } = useDriverRanking(activeFilters);
 
   const driverMap = React.useMemo(() => {
     const m = new Map<string, { name: string; room: string }>();

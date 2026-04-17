@@ -51,9 +51,9 @@ export interface IStorage {
   getDriverByRegistration(registration: string): Promise<DriverBase | undefined>;
   getAllDrivers(): Promise<DriverBase[]>;
   getDashboardMetrics(filters?: any): Promise<DashboardMetrics>;
-  getMetricsByRoom(): Promise<{ room: string; avgMinutes: number; count: number }[]>;
-  getDriversWithoutRoom(): Promise<{ driverId: string; maps: string[]; count: number }[]>;
-  getDriverRanking(): Promise<{ room: string; top: any[]; bottom: any[] }[]>;
+  getMetricsByRoom(filters?: { startDate?: string; endDate?: string }): Promise<{ room: string; avgMinutes: number; count: number }[]>;
+  getDriversWithoutRoom(filters?: { startDate?: string; endDate?: string }): Promise<{ driverId: string; maps: string[]; count: number }[]>;
+  getDriverRanking(filters?: { startDate?: string; endDate?: string }): Promise<{ room: string; top: any[]; bottom: any[] }[]>;
   bulkInsertGinfoChecklist(items: InsertGinfoChecklist[]): Promise<void>;
   getGinfoChecklist(): Promise<GinfoChecklist[]>;
   getAdherenceReport(): Promise<{
@@ -152,15 +152,14 @@ export class DatabaseStorage implements IStorage {
     return { totalMaps, conferencedMaps, adherencePercentage, maps };
   }
 
-  async getDriverRanking(): Promise<{ room: string; top: any[]; bottom: any[] }[]> {
+  async getDriverRanking(filters?: { startDate?: string; endDate?: string }): Promise<{ room: string; top: any[]; bottom: any[] }[]> {
     // Todos os motoristas com sala cadastrada
     const allDrivers = await db.select().from(driverBase);
     const driverMap = new Map<string, { name: string; room: string }>();
     allDrivers.forEach(d => driverMap.set(normalizeReg(d.registration), { name: d.name, room: d.room }));
 
-    // Conferências finalizadas com tempo válido
-    const allConfs = await db.select().from(conferences)
-      .where(eq(conferences.status, "completed"));
+    // Conferências finalizadas com tempo válido (respeitando filtro de data)
+    const allConfs = (await this.getConferences({ ...filters, status: "completed" })).filter(c => c.status === "completed");
 
     // Calcular duração por motorista
     const driverStats = new Map<string, { totalMin: number; count: number }>();
@@ -374,12 +373,11 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getDriversWithoutRoom(): Promise<{ driverId: string; maps: string[]; count: number }[]> {
+  async getDriversWithoutRoom(filters?: { startDate?: string; endDate?: string }): Promise<{ driverId: string; maps: string[]; count: number }[]> {
     const drivers = await db.select().from(driverBase);
     const knownRegistrations = new Set(drivers.map(d => normalizeReg(d.registration)));
 
-    const completed = await db.select().from(conferences)
-      .where(sql`status = 'completed'`);
+    const completed = (await this.getConferences(filters)).filter(c => c.status === "completed");
 
     const map = new Map<string, string[]>();
     for (const conf of completed) {
@@ -395,7 +393,7 @@ export class DatabaseStorage implements IStorage {
       .sort((a, b) => b.count - a.count);
   }
 
-  async getMetricsByRoom(): Promise<{ room: string; avgMinutes: number; count: number }[]> {
+  async getMetricsByRoom(filters?: { startDate?: string; endDate?: string }): Promise<{ room: string; avgMinutes: number; count: number }[]> {
     // Busca todos os motoristas com sala definida
     const drivers = await db.select().from(driverBase);
     const roomByRegistration = new Map<string, string>();
@@ -405,9 +403,9 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Busca conferências finalizadas com tempo válido
-    const completed = await db.select().from(conferences)
-      .where(sql`status = 'completed' AND start_time IS NOT NULL AND end_time IS NOT NULL`);
+    // Busca conferências finalizadas com tempo válido (respeitando filtro de data)
+    const completed = (await this.getConferences(filters))
+      .filter(c => c.status === "completed" && c.startTime && c.endTime);
 
     // Agrupa por sala
     const roomMap = new Map<string, { total: number; count: number }>();

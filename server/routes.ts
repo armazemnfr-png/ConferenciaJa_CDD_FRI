@@ -91,7 +91,8 @@ export async function registerRoutes(
 
   app.get("/api/dashboard/ranking", async (req, res) => {
     try {
-      const data = await storage.getDriverRanking();
+      const filters = { startDate: req.query.startDate as string, endDate: req.query.endDate as string };
+      const data = await storage.getDriverRanking(filters);
       res.json(data);
     } catch (err) {
       console.error("Erro ao buscar ranking:", err);
@@ -101,7 +102,8 @@ export async function registerRoutes(
 
   app.get("/api/dashboard/sem-sala", async (req, res) => {
     try {
-      const data = await storage.getDriversWithoutRoom();
+      const filters = { startDate: req.query.startDate as string, endDate: req.query.endDate as string };
+      const data = await storage.getDriversWithoutRoom(filters);
       res.json(data);
     } catch (err) {
       console.error("Erro ao buscar motoristas sem sala:", err);
@@ -111,7 +113,8 @@ export async function registerRoutes(
 
   app.get("/api/dashboard/by-room", async (req, res) => {
     try {
-      const data = await storage.getMetricsByRoom();
+      const filters = { startDate: req.query.startDate as string, endDate: req.query.endDate as string };
+      const data = await storage.getMetricsByRoom(filters);
       res.json(data);
     } catch (err) {
       console.error("Erro ao buscar métricas por sala:", err);

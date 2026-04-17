@@ -82,11 +82,13 @@ export function useAdherencia() {
   });
 }
 
-export function useDriverRanking() {
+export function useDriverRanking(filters?: FilterParams) {
   return useQuery<{ room: string; top: DriverRankEntry[]; bottom: DriverRankEntry[] }[]>({
-    queryKey: ["/api/dashboard/ranking"],
+    queryKey: ["/api/dashboard/ranking", filters],
     queryFn: async () => {
-      const res = await fetch("/api/dashboard/ranking", { credentials: "include" });
+      const url = new URL(window.location.origin + "/api/dashboard/ranking");
+      if (filters) Object.entries(filters).forEach(([k, v]) => { if (v) url.searchParams.append(k, v); });
+      const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Erro ao buscar ranking");
       return res.json();
     },
@@ -104,22 +106,26 @@ export function useDrivers() {
   });
 }
 
-export function useDriversWithoutRoom() {
+export function useDriversWithoutRoom(filters?: FilterParams) {
   return useQuery<{ driverId: string; maps: string[]; count: number }[]>({
-    queryKey: ["/api/dashboard/sem-sala"],
+    queryKey: ["/api/dashboard/sem-sala", filters],
     queryFn: async () => {
-      const res = await fetch("/api/dashboard/sem-sala", { credentials: "include" });
+      const url = new URL(window.location.origin + "/api/dashboard/sem-sala");
+      if (filters) Object.entries(filters).forEach(([k, v]) => { if (v) url.searchParams.append(k, v); });
+      const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Erro ao buscar motoristas sem sala");
       return res.json();
     },
   });
 }
 
-export function useMetricsByRoom() {
+export function useMetricsByRoom(filters?: FilterParams) {
   return useQuery<{ room: string; avgMinutes: number; count: number }[]>({
-    queryKey: ["/api/dashboard/by-room"],
+    queryKey: ["/api/dashboard/by-room", filters],
     queryFn: async () => {
-      const res = await fetch("/api/dashboard/by-room", { credentials: "include" });
+      const url = new URL(window.location.origin + "/api/dashboard/by-room");
+      if (filters) Object.entries(filters).forEach(([k, v]) => { if (v) url.searchParams.append(k, v); });
+      const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Erro ao buscar métricas por sala");
       return res.json();
     },
