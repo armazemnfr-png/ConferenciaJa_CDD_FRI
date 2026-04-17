@@ -47,6 +47,7 @@ export interface IStorage {
   bulkInsertWmsItems(items: InsertWmsItem[]): Promise<void>;
   bulkInsertPromaxData(items: any[]): Promise<void>;
   getPromaxByDriver(registration: string): Promise<PromaxData | undefined>;
+  getPortariaData(): Promise<{ mapa: string; motorista: string; nome: string; sala: string; dtOper: string; hrOper: string }[]>;
   bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void>;
   getDriverByRegistration(registration: string): Promise<DriverBase | undefined>;
   getAllDrivers(): Promise<DriverBase[]>;
@@ -337,20 +338,56 @@ export class DatabaseStorage implements IStorage {
   async bulkInsertPromaxData(items: any[]): Promise<void> {
     if (items.length === 0) return;
     await db.execute(sql`TRUNCATE TABLE promax_data RESTART IDENTITY CASCADE`);
+    const CHUNK = 50;
+    const toInsert: any[] = [];
     for (const item of items) {
       const fase = String(item.fase || item.Fase || "").trim().toUpperCase();
-      if (fase !== "CARREGADO") continue;
       const matricula = String(item.motorista || item.Motorista || "").trim();
       const mapa = String(item.mapa || item.Mapa || "").trim();
-      if (!mapa || !matricula) continue;
-      await db.insert(promaxData).values({
-        mapa: mapa,
-        motorista: matricula,
-        fase: "CARREGADO",
-        veiculo: String(item.veiculo || item.Veículo || ""),
-        placa: String(item.placa || item.Placa || ""),
-      });
+      if (!mapa) continue;
+
+      if (fase === "CARREGADO" && matricula) {
+        toInsert.push({
+          mapa,
+          motorista: matricula,
+          fase: "CARREGADO",
+          veiculo: String(item.veiculo || item.Veículo || ""),
+          placa: String(item.placa || item.Placa || ""),
+        });
+      } else if (fase === "SAIDA CDD/FAB") {
+        toInsert.push({
+          mapa,
+          motorista: matricula || "",
+          fase: "SAIDA CDD/FAB",
+          hrOper: String(item.hrOper || item.HrOper || ""),
+          dtOper: String(item.dtOper || item.DtOper || ""),
+        });
+      }
     }
+    for (let i = 0; i < toInsert.length; i += CHUNK) {
+      await db.insert(promaxData).values(toInsert.slice(i, i + CHUNK));
+    }
+  }
+
+  async getPortariaData(): Promise<{ mapa: string; motorista: string; nome: string; sala: string; dtOper: string; hrOper: string }[]> {
+    const entries = await db.select().from(promaxData)
+      .where(sql`upper(trim(${promaxData.fase})) = 'SAIDA CDD/FAB'`);
+
+    const drivers = await db.select().from(driverBase);
+    const driverMap = new Map<string, { name: string; room: string }>();
+    drivers.forEach(d => driverMap.set(normalizeReg(d.registration), { name: d.name, room: d.room }));
+
+    return entries.map(entry => {
+      const info = driverMap.get(normalizeReg(entry.motorista || ""));
+      return {
+        mapa: entry.mapa || "",
+        motorista: entry.motorista || "",
+        nome: info?.name || "–",
+        sala: info?.room || "–",
+        dtOper: entry.dtOper || "",
+        hrOper: entry.hrOper || "",
+      };
+    }).sort((a, b) => a.hrOper.localeCompare(b.hrOper));
   }
 
   async getDriverByRegistration(registration: string): Promise<DriverBase | undefined> {

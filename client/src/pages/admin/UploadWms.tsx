@@ -56,15 +56,15 @@ const UploadDados = () => {
             })).filter((item: any) => item.mapNumber && item.description && item.mapNumber !== "undefined");
           } 
           else if (activeTab === 'PW') {
-            const uniqueMaps = new Map();
-            results.data.forEach((item: any) => {
-              const mapa = String(item['Mapa'] || "").trim();
-              const motorista = String(item['Motorista'] || "").trim();
-              if (mapa && motorista && !uniqueMaps.has(mapa)) {
-                uniqueMaps.set(mapa, { mapa, motorista });
-              }
-            });
-            items = Array.from(uniqueMaps.values());
+            items = results.data.map((item: any) => ({
+              mapa: String(item['Mapa'] || "").trim(),
+              fase: String(item['Fase'] || "").trim(),
+              hrOper: String(item['HrOper'] || item['Hr Oper'] || item['Hr_Oper'] || "").trim(),
+              dtOper: String(item['DtOper'] || item['Dt Oper'] || item['Dt_Oper'] || item['Data'] || "").trim(),
+              motorista: String(item['Motorista'] || "").trim(),
+              veiculo: String(item['Veiculo'] || item['Veículo'] || "").trim(),
+              placa: String(item['Placa'] || "").trim(),
+            })).filter((item: any) => item.mapa && item.fase);
           } 
           else if (activeTab === 'MOT') {
             items = results.data.map((item: any) => ({

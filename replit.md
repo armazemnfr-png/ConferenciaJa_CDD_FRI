@@ -47,6 +47,13 @@ Preferred communication style: Simple, everyday language.
 
 **Note**: There is also a legacy `server.js` file at root and a `prisma/` directory referencing Prisma — these are leftover artifacts. The active system uses Drizzle ORM exclusively. The legacy `server.js` should not be used.
 
+### Portaria (Gate Exit Tracking)
+The `promax_data` table stores two types of records from the Promax PW report:
+- `fase = "CARREGADO"` — used for driver login (maps driver registration to their map)
+- `fase = "SAIDA CDD/FAB"` — used for portaria exit tracking (stores `hrOper`, `dtOper`, `motorista`)
+
+The upload (PW tab) now sends all rows to the server with `mapa`, `fase`, `hrOper`, `dtOper`, `motorista`, `veiculo`, `placa`. The server filters by phase and stores accordingly.
+
 ### Authentication
 - **Replit Auth** integration via OpenID Connect (located in `server/replit_integrations/auth/`)
 - Session-based authentication using `express-session` with `connect-pg-simple` for PostgreSQL session storage

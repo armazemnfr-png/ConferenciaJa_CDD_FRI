@@ -79,6 +79,16 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/portaria", async (req, res) => {
+    try {
+      const data = await storage.getPortariaData();
+      res.json(data);
+    } catch (err) {
+      console.error("Erro ao buscar dados da portaria:", err);
+      res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
   app.get("/api/dashboard/adherencia", async (req, res) => {
     try {
       const data = await storage.getAdherenceReport();
