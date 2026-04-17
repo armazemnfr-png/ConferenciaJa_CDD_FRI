@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useQuery } from "@tanstack/react-query";
-import { DoorOpen, Search, X, Clock, Loader2, AlertCircle } from "lucide-react";
+import { DoorOpen, Search, X, Clock, Loader2, AlertCircle, CalendarRange, Building2, User } from "lucide-react";
 
 type PortariaRow = {
   mapa: string;
@@ -23,91 +23,182 @@ function usePortariaData() {
   });
 }
 
+// Converte "DD/MM/YYYY" → Date (ou tenta outros formatos)
+function parseDtOper(dtOper: string): Date | null {
+  if (!dtOper) return null;
+  // Formato DD/MM/YYYY
+  const dmyMatch = dtOper.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmyMatch) {
+    const [, d, m, y] = dmyMatch;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+  // Formato YYYY-MM-DD
+  const ymdMatch = dtOper.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (ymdMatch) {
+    const [, y, m, d] = ymdMatch;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+  return null;
+}
+
 export default function AdminPortaria() {
   const { data, isLoading, error } = usePortariaData();
 
   const [search, setSearch] = useState("");
-  const [filterData, setFilterData] = useState("");
+  const [filterMotorista, setFilterMotorista] = useState("");
+  const [filterSala, setFilterSala] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  const uniqueSalas = useMemo(() => {
+    if (!data) return [];
+    return [...new Set(data.map(r => r.sala).filter(s => s && s !== "–"))].sort();
+  }, [data]);
 
   const rows = useMemo(() => {
     if (!data) return [];
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate + "T23:59:59") : null;
+
     return data.filter(row => {
       const matchSearch =
         !search ||
-        row.mapa.toLowerCase().includes(search.toLowerCase()) ||
-        row.motorista.toLowerCase().includes(search.toLowerCase()) ||
-        row.nome.toLowerCase().includes(search.toLowerCase()) ||
-        row.sala.toLowerCase().includes(search.toLowerCase());
-      const matchDate = !filterData || row.dtOper === filterData;
-      return matchSearch && matchDate;
-    });
-  }, [data, search, filterData]);
+        row.mapa.toLowerCase().includes(search.toLowerCase());
 
-  const uniqueDates = useMemo(() => {
-    if (!data) return [];
-    const dates = [...new Set(data.map(r => r.dtOper).filter(Boolean))].sort();
-    return dates;
-  }, [data]);
+      const matchMotorista =
+        !filterMotorista ||
+        row.motorista.toLowerCase().includes(filterMotorista.toLowerCase()) ||
+        row.nome.toLowerCase().includes(filterMotorista.toLowerCase());
+
+      const matchSala =
+        !filterSala || row.sala === filterSala;
+
+      let matchDate = true;
+      if (start || end) {
+        const dt = parseDtOper(row.dtOper);
+        if (dt) {
+          if (start && dt < start) matchDate = false;
+          if (end && dt > end) matchDate = false;
+        } else {
+          matchDate = false;
+        }
+      }
+
+      return matchSearch && matchMotorista && matchSala && matchDate;
+    });
+  }, [data, search, filterMotorista, filterSala, startDate, endDate]);
 
   function clearFilters() {
     setSearch("");
-    setFilterData("");
+    setFilterMotorista("");
+    setFilterSala("");
+    setStartDate("");
+    setEndDate("");
   }
 
-  const hasFilters = search || filterData;
+  const hasFilters = search || filterMotorista || filterSala || startDate || endDate;
 
   return (
     <AdminLayout>
       <div className="space-y-6">
+        {/* Cabeçalho */}
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
             <DoorOpen className="h-5 w-5 text-primary" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Saída Portaria</h1>
-            <p className="text-sm text-muted-foreground">Horários de saída na portaria (Fase: Saída CDD/Fab)</p>
+            <p className="text-sm text-muted-foreground">Horários de saída — mapas de rota (Fase: Saída CDD/Fab)</p>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Buscar mapa, matrícula ou motorista..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              data-testid="input-portaria-search"
-              className="w-full pl-9 pr-4 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
+        {/* Filtros */}
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Mapa */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar mapa..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                data-testid="input-portaria-search"
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            {/* Motorista */}
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Motorista ou matrícula..."
+                value={filterMotorista}
+                onChange={e => setFilterMotorista(e.target.value)}
+                data-testid="input-portaria-motorista"
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            {/* Sala */}
+            <div className="relative">
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <select
+                value={filterSala}
+                onChange={e => setFilterSala(e.target.value)}
+                data-testid="select-portaria-sala"
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 appearance-none"
+              >
+                <option value="">Todas as salas</option>
+                {uniqueSalas.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Limpar */}
+            {hasFilters ? (
+              <button
+                onClick={clearFilters}
+                data-testid="button-portaria-clear"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <X className="h-4 w-4" />
+                Limpar filtros
+              </button>
+            ) : (
+              <div />
+            )}
           </div>
 
-          {uniqueDates.length > 0 && (
-            <select
-              value={filterData}
-              onChange={e => setFilterData(e.target.value)}
-              data-testid="select-portaria-date"
-              className="px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              <option value="">Todas as datas</option>
-              {uniqueDates.map(d => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          )}
-
-          {hasFilters && (
-            <button
-              onClick={clearFilters}
-              data-testid="button-portaria-clear"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <X className="h-4 w-4" />
-              Limpar
-            </button>
-          )}
+          {/* Período */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
+              <CalendarRange className="h-4 w-4" />
+              <span>Período:</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                data-testid="input-portaria-start"
+                className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              <span className="text-muted-foreground text-sm">até</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                data-testid="input-portaria-end"
+                className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+          </div>
         </div>
 
+        {/* Conteúdo */}
         {isLoading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -125,13 +216,26 @@ export default function AdminPortaria() {
                 ? "Nenhum dado encontrado. Certifique-se de que o relatório PW (Promax) e o relatório WMS foram importados."
                 : "Nenhum resultado para os filtros selecionados."}
             </p>
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                className="text-sm text-primary hover:underline"
+              >
+                Limpar filtros
+              </button>
+            )}
           </div>
         ) : (
           <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
             <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/30">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock className="h-4 w-4" />
-                <span>{rows.length} registro{rows.length !== 1 ? "s" : ""} encontrado{rows.length !== 1 ? "s" : ""}</span>
+                <span>
+                  {rows.length} registro{rows.length !== 1 ? "s" : ""} encontrado{rows.length !== 1 ? "s" : ""}
+                  {data && data.length !== rows.length && (
+                    <span className="ml-1 text-xs">de {data.length} total</span>
+                  )}
+                </span>
               </div>
             </div>
 
