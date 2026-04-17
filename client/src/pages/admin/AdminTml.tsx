@@ -8,7 +8,7 @@ import { Calendar, Clock, Users, Filter, ChevronDown } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import AdminLayout from "@/components/layout/AdminLayout";
+import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { TmlRecord } from "@shared/schema";
 
 function minToHMS(min: number): string {
