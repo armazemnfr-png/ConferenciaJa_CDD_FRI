@@ -113,7 +113,7 @@ export default function AdminTml() {
       <div className="p-6 space-y-6">
         {/* Cabeçalho */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">TML — Tempo de Manhã de Loja</h1>
+          <h1 className="text-2xl font-bold text-gray-900">TML — Tempo Médio de Liberação</h1>
           <p className="text-sm text-gray-500 mt-1">Análise dos tempos de operação matinal por mapa</p>
         </div>
 

@@ -47,7 +47,7 @@ Preferred communication style: Simple, everyday language.
 
 **Note**: There is also a legacy `server.js` file at root and a `prisma/` directory referencing Prisma — these are leftover artifacts. The active system uses Drizzle ORM exclusively. The legacy `server.js` should not be used.
 
-### TML (Tempo de Manhã de Loja)
+### TML (Tempo Médio de Liberação)
 `AdminTml` page at `/admin/tml` computes 4 components per mapa from cross-referenced data:
 - **Matinal** — `matinals.durationMinutes` (matched by equipe substring vs roomName, same day as portaria exit)
 - **Matinal→Pátio** — `ginfo.hrInicio` minus matinal `actualEndTime`
