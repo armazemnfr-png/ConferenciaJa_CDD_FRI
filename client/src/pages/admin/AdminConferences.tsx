@@ -38,10 +38,17 @@ export default function ConferencesHistory() {
   const { data: conferences } = useConferences();
   const { data: drivers } = useDrivers();
 
+  // Remove zeros à esquerda de matrículas numéricas ("0120" → "120")
+  const normalizeReg = (s: string) => {
+    const t = (s || "").trim();
+    const n = parseInt(t, 10);
+    return isNaN(n) ? t : String(n);
+  };
+
   // Mapa rápido: matrícula → { nome, sala }
   const driverMap = useMemo(() => {
     const m = new Map<string, { name: string; room: string }>();
-    drivers?.forEach(d => m.set(d.registration.trim(), { name: d.name, room: d.room }));
+    drivers?.forEach(d => m.set(normalizeReg(d.registration), { name: d.name, room: d.room }));
     return m;
   }, [drivers]);
 
@@ -96,7 +103,7 @@ export default function ConferencesHistory() {
         const diffSec = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
         durMin = String(Math.round(diffSec / 60));
       }
-      const info = driverMap.get(conf.driverId?.trim() ?? "");
+      const info = driverMap.get(normalizeReg(conf.driverId ?? ""));
       return [
         conf.mapNumber,
         conf.driverId ?? "",
@@ -282,7 +289,7 @@ export default function ConferencesHistory() {
                     <TableCell className="font-bold">#{conf.mapNumber}</TableCell>
                     <TableCell>
                       {(() => {
-                        const info = driverMap.get(conf.driverId?.trim() ?? "");
+                        const info = driverMap.get(normalizeReg(conf.driverId ?? ""));
                         return info ? (
                           <div>
                             <p className="font-semibold text-slate-800 text-sm leading-tight">{info.name}</p>
