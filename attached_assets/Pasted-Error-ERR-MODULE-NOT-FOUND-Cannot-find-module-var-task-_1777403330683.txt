@@ -1,0 +1,30 @@
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/var/task/server/routes' imported from /var/task/api/index.js
+    at finalizeResolution (node:internal/modules/esm/resolve:281:11)
+    at moduleResolve (node:internal/modules/esm/resolve:871:10)
+    at moduleResolveWithNodePath (node:internal/modules/esm/resolve:997:14)
+    at defaultResolve (node:internal/modules/esm/resolve:1040:79)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:719:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:736:38)
+    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:765:52)
+    at #resolve (node:internal/modules/esm/loader:701:17)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:621:35)
+    at ModuleJob.syncLink (node:internal/modules/esm/module_job:160:33) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///var/task/server/routes'
+}
+Node.js process exited with exit status: 1. The logs above can help with debugging the issue.
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/var/task/server/routes' imported from /var/task/api/index.js
+    at finalizeResolution (node:internal/modules/esm/resolve:281:11)
+    at moduleResolve (node:internal/modules/esm/resolve:871:10)
+    at moduleResolveWithNodePath (node:internal/modules/esm/resolve:997:14)
+    at defaultResolve (node:internal/modules/esm/resolve:1040:79)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:719:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:736:38)
+    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:765:52)
+    at #resolve (node:internal/modules/esm/loader:701:17)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:621:35)
+    at ModuleJob.syncLink (node:internal/modules/esm/module_job:160:33) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///var/task/server/routes'
+}
+Node.js process exited with exit status: 1. The logs above can help with debugging the issue.
