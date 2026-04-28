@@ -62,8 +62,8 @@ export default function ConferenceHistory() {
                   <Clock className="w-3 h-3 text-blue-500" />
                   <span className="font-mono font-bold text-blue-600">
                     {calculateDuration(
-                      conf.startTime ? new Date(conf.startTime as unknown as string).toISOString() : undefined,
-                      conf.endTime ? new Date(conf.endTime as unknown as string).toISOString() : undefined
+                      conf.startTime ? String(conf.startTime) : undefined,
+                      conf.endTime ? String(conf.endTime) : undefined
                     )}
                   </span>
                 </div>
