@@ -40083,17 +40083,24 @@ var api = {
 // server/routes.ts
 async function registerRoutes(httpServer2, app2) {
   app2.post("/api/admin/verify", (req, res) => {
-    const { password } = req.body ?? {};
-    const correctPassword = process.env.ADMIN_PASSWORD ?? "Ambev@123";
-    console.log("[admin/verify] body recebido:", JSON.stringify(req.body));
-    console.log("[admin/verify] ADMIN_PASSWORD definida:", !!process.env.ADMIN_PASSWORD);
-    console.log("[admin/verify] senha correta (primeiros 3 chars):", correctPassword.slice(0, 3) + "***");
-    console.log("[admin/verify] senha recebida (primeiros 3 chars):", password ? String(password).slice(0, 3) + "***" : "(vazia)");
-    console.log("[admin/verify] bate?", password === correctPassword);
-    if (password === correctPassword) {
+    const received = String(req.body?.password ?? "").trim();
+    const correctPassword = (process.env.ADMIN_PASSWORD ?? "Ambev@123").trim();
+    if (received === correctPassword) {
       return res.json({ ok: true });
     }
-    return res.status(401).json({ ok: false, message: "Senha incorreta." });
+    return res.status(401).json({
+      ok: false,
+      message: "Senha incorreta.",
+      hint: `esperado ${correctPassword.length} chars, recebido ${received.length} chars`
+    });
+  });
+  app2.get("/api/admin/debug-pw", (_req, res) => {
+    const pw = (process.env.ADMIN_PASSWORD ?? "Ambev@123").trim();
+    res.json({
+      defined: !!process.env.ADMIN_PASSWORD,
+      length: pw.length,
+      preview: pw.slice(0, 3) + "*".repeat(Math.max(0, pw.length - 3))
+    });
   });
   app2.get("/api/driver/check/:registration", async (req, res) => {
     try {
