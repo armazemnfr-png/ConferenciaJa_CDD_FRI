@@ -14,6 +14,11 @@ export async function registerRoutes(
     const received = String(req.body?.password ?? "").trim();
     const correctPassword = (process.env.ADMIN_PASSWORD ?? "Ambev@123").trim();
 
+    console.log("[admin/verify] ADMIN_PASSWORD:", process.env.ADMIN_PASSWORD ? "Configurada" : "Vazia (usando padrão)");
+    console.log("[admin/verify] comprimento esperado:", correctPassword.length, "| recebido:", received.length);
+    console.log("[admin/verify] preview esperado:", correctPassword.slice(0, 3) + "***");
+    console.log("[admin/verify] bate?", received === correctPassword);
+
     if (received === correctPassword) {
       return res.json({ ok: true });
     }
@@ -24,7 +29,29 @@ export async function registerRoutes(
     });
   });
 
-  // --- DIAGNÓSTICO DE SENHA (remover após configurar) ---
+  // --- DIAGNÓSTICO GERAL (remover após configurar) ---
+  app.get("/api/check-env", async (_req: Request, res: Response) => {
+    const pw = (process.env.ADMIN_PASSWORD ?? "").trim();
+    const dbUrl = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+
+    let dbOk = false;
+    let dbError = "";
+    try {
+      const { pool } = await import("./db");
+      const result = await pool.query("SELECT 1 AS ok");
+      dbOk = result.rows[0]?.ok === 1;
+    } catch (err: any) {
+      dbError = err?.message ?? "erro desconhecido";
+    }
+
+    res.json({
+      admin_password: pw ? `Configurada (${pw.length} chars, começa com "${pw.slice(0, 3)}")` : "NÃO CONFIGURADA – usando padrão Ambev@123",
+      database_url: dbUrl ? "Configurada" : "NÃO CONFIGURADA",
+      database_conectada: dbOk ? "SIM ✓" : `NÃO ✗ – ${dbError}`,
+      node_env: process.env.NODE_ENV ?? "não definido",
+    });
+  });
+
   app.get("/api/admin/debug-pw", (_req: Request, res: Response) => {
     const pw = (process.env.ADMIN_PASSWORD ?? "Ambev@123").trim();
     res.json({
