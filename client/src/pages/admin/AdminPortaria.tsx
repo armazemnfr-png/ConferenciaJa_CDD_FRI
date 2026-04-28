@@ -52,7 +52,7 @@ export default function AdminPortaria() {
 
   const uniqueSalas = useMemo(() => {
     if (!data) return [];
-    return [...new Set(data.map(r => r.sala).filter(s => s && s !== "–"))].sort();
+    return Array.from(new Set(data.map(r => r.sala).filter(s => s && s !== "–"))).sort();
   }, [data]);
 
   const rows = useMemo(() => {

@@ -61,7 +61,7 @@ export default function ConferenceHistory() {
                 <div className="flex items-center gap-2">
                   <Clock className="w-3 h-3 text-blue-500" />
                   <span className="font-mono font-bold text-blue-600">
-                    {calculateDuration(conf.startTime, conf.endTime)}
+                    {calculateDuration(conf.startTime?.toISOString() ?? undefined, conf.endTime?.toISOString() ?? undefined)}
                   </span>
                 </div>
               </TableCell>

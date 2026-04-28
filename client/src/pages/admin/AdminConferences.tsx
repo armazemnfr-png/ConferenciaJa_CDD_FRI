@@ -94,8 +94,8 @@ export default function ConferencesHistory() {
     if (filteredData.length === 0) return;
 
     const rows = filteredData.map(conf => {
-      const hasDiv = conf.hasDivergence === true || conf.hasDivergence === 1;
-      const hasDmg = conf.hasDamage === true || conf.hasDamage === 1;
+      const hasDiv = !!conf.hasDivergence;
+      const hasDmg = !!conf.hasDamage;
       const startTime = conf.startTime ? new Date(conf.startTime) : null;
       const endTime = conf.endTime ? new Date(conf.endTime) : null;
       let durMin = "";
@@ -140,11 +140,11 @@ export default function ConferencesHistory() {
       const matchesSearch = conf.mapNumber.toLowerCase().includes(appliedFilters.search.toLowerCase()) || 
                            (conf.driverId && conf.driverId.toLowerCase().includes(appliedFilters.search.toLowerCase()));
 
-      const hasDiv = conf.hasDivergence === true || conf.hasDivergence === 1;
+      const hasDiv = !!conf.hasDivergence;
       const matchesDiv = appliedFilters.div === "all" ? true : 
                         appliedFilters.div === "yes" ? hasDiv : !hasDiv;
 
-      const hasDmg = conf.hasDamage === true || conf.hasDamage === 1;
+      const hasDmg = !!conf.hasDamage;
       const matchesDmg = appliedFilters.dmg === "all" ? true : 
                         appliedFilters.dmg === "yes" ? hasDmg : !hasDmg;
 
@@ -272,8 +272,8 @@ export default function ConferencesHistory() {
                 </TableRow>
               )}
               {filteredData.map((conf) => {
-                const hasDiv = conf.hasDivergence === true || conf.hasDivergence === 1;
-                const hasDmg = conf.hasDamage === true || conf.hasDamage === 1;
+                const hasDiv = !!conf.hasDivergence;
+                const hasDmg = !!conf.hasDamage;
                 const isClean = conf.status === 'completed' && !hasDiv && !hasDmg;
 
                 const startTime = conf.startTime ? new Date(conf.startTime) : null;

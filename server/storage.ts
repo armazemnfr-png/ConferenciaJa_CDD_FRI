@@ -134,7 +134,7 @@ export class DatabaseStorage implements IStorage {
       completedAt: string | null;
     }[] = [];
 
-    for (const mapNumber of expectedMaps) {
+    for (const mapNumber of Array.from(expectedMaps)) {
       const conf = confByMap.get(mapNumber);
       let status: 'completed' | 'in_progress' | 'not_started';
       if (!conf) {
@@ -199,7 +199,7 @@ export class DatabaseStorage implements IStorage {
 
     // Montar lista de drivers com sala e métricas
     const entries: { registration: string; name: string; room: string; avgMinutes: number; count: number }[] = [];
-    for (const [reg, stats] of driverStats) {
+    for (const [reg, stats] of Array.from(driverStats.entries())) {
       const info = driverMap.get(reg);
       if (!info || !info.room) continue;
       entries.push({
@@ -220,7 +220,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     const result: { room: string; top: any[]; bottom: any[] }[] = [];
-    for (const [room, list] of byRoom) {
+    for (const [room, list] of Array.from(byRoom.entries())) {
       const sorted = [...list].sort((a, b) => a.avgMinutes - b.avgMinutes);
       const top = sorted.slice(0, 3);
       const bottom = sorted.length > 3 ? sorted.slice(-3).reverse() : [];
@@ -259,7 +259,7 @@ export class DatabaseStorage implements IStorage {
       // Acha matinal pelo equipe/sala e data
       const sala = ginfo?.equipe || portaria.sala || "";
       const matchingMatinal = portariaDate ? matinalAll.find(m => {
-        const md = new Date(m.date || m.actualEndTime);
+        const md = new Date((m.date ?? m.actualEndTime ?? Date.now()));
         return (
           tmlSalaMatch(m.roomName, sala) &&
           md.getFullYear() === portariaDate.getFullYear() &&
@@ -270,7 +270,7 @@ export class DatabaseStorage implements IStorage {
 
       // Matinal
       const matinalMin = matchingMatinal?.durationMinutes ?? 0;
-      const matinalEndMin = matchingMatinal
+      const matinalEndMin = matchingMatinal && matchingMatinal.actualEndTime
         ? (new Date(matchingMatinal.actualEndTime).getHours() * 60 + new Date(matchingMatinal.actualEndTime).getMinutes())
         : 0;
 

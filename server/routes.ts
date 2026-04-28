@@ -168,7 +168,7 @@ export async function registerRoutes(
       const created = await storage.createMatinal(input);
       res.status(200).json(created);
     } catch (err) {
-      if (err instanceof z.ZError) {
+      if (err instanceof z.ZodError) {
         return res.status(400).json({
           message: err.errors[0].message,
           field: err.errors[0].path.join('.'),
