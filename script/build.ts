@@ -65,15 +65,15 @@ async function buildAll() {
     entryPoints: ["api/_index.ts"],
     platform: "node",
     bundle: true,
-    format: "cjs",
-    outfile: "api/index.cjs",
+    format: "esm",
+    outfile: "api/index.js",
     define: {
       "process.env.NODE_ENV": '"production"',
     },
     external: externals,
     logLevel: "info",
-    footer: {
-      js: "module.exports = module.exports.default || module.exports;",
+    banner: {
+      js: `import { createRequire } from 'module'; const require = createRequire(import.meta.url);`,
     },
   });
 }
