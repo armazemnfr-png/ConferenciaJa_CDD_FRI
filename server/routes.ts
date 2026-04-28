@@ -13,6 +13,13 @@ export async function registerRoutes(
   app.post("/api/admin/verify", (req: Request, res: Response) => {
     const { password } = req.body ?? {};
     const correctPassword = process.env.ADMIN_PASSWORD ?? "Ambev@123";
+
+    console.log("[admin/verify] body recebido:", JSON.stringify(req.body));
+    console.log("[admin/verify] ADMIN_PASSWORD definida:", !!process.env.ADMIN_PASSWORD);
+    console.log("[admin/verify] senha correta (primeiros 3 chars):", correctPassword.slice(0, 3) + "***");
+    console.log("[admin/verify] senha recebida (primeiros 3 chars):", password ? String(password).slice(0, 3) + "***" : "(vazia)");
+    console.log("[admin/verify] bate?", password === correctPassword);
+
     if (password === correctPassword) {
       return res.json({ ok: true });
     }
