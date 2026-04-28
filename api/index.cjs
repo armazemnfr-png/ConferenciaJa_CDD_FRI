@@ -28431,7 +28431,7 @@ __export(index_exports, {
   default: () => handler
 });
 module.exports = __toCommonJS(index_exports);
-var import_express = __toESM(require_express2(), 1);
+var import_express = __toESM(require_express2());
 var import_http = require("http");
 
 // node_modules/pg/esm/index.mjs
