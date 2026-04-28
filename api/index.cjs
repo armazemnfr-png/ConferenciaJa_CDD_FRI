@@ -40728,3 +40728,4 @@ serve-static/index.js:
    * MIT Licensed
    *)
 */
+module.exports = module.exports.default || module.exports;

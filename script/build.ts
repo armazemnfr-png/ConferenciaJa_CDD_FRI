@@ -72,6 +72,9 @@ async function buildAll() {
     },
     external: externals,
     logLevel: "info",
+    footer: {
+      js: "module.exports = module.exports.default || module.exports;",
+    },
   });
 }
 
