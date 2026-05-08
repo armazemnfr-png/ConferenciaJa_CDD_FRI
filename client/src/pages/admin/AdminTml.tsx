@@ -37,11 +37,11 @@ const COLORS = {
 };
 
 const METRIC_COLORS = [
-  { bg: "bg-blue-600", text: "text-white", label: "TML Total", key: "tmlMin" as const },
-  { bg: "bg-blue-500", text: "text-white", label: "Matinal", key: "matinalMin" as const },
-  { bg: "bg-amber-500", text: "text-white", label: "Matinal → Pátio", key: "matinalPatioMin" as const },
-  { bg: "bg-emerald-500", text: "text-white", label: "Checklist", key: "checklistMin" as const },
-  { bg: "bg-violet-500", text: "text-white", label: "Pátio → Portaria", key: "patioPortariaMin" as const },
+  { bg: "bg-blue-50",    border: "border-blue-400",    text: "text-blue-700",    sub: "text-blue-400",   label: "TML Total",        key: "tmlMin" as const },
+  { bg: "bg-blue-50",    border: "border-blue-300",    text: "text-blue-600",    sub: "text-blue-300",   label: "Matinal",          key: "matinalMin" as const },
+  { bg: "bg-amber-50",   border: "border-amber-400",   text: "text-amber-700",   sub: "text-amber-400",  label: "Matinal → Pátio",  key: "matinalPatioMin" as const },
+  { bg: "bg-emerald-50", border: "border-emerald-400", text: "text-emerald-700", sub: "text-emerald-400",label: "Checklist",         key: "checklistMin" as const },
+  { bg: "bg-violet-50",  border: "border-violet-400",  text: "text-violet-700",  sub: "text-violet-400", label: "Pátio → Portaria", key: "patioPortariaMin" as const },
 ];
 
 export default function AdminTml() {
@@ -120,12 +120,12 @@ export default function AdminTml() {
         {/* Metric cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {METRIC_COLORS.map(card => (
-            <div key={card.key} className={`${card.bg} rounded-xl p-4 flex flex-col gap-1`} data-testid={`tml-card-${card.key}`}>
-              <span className="text-xs font-medium text-white/80 uppercase tracking-wide">{card.label}</span>
-              <span className="text-2xl font-bold text-white font-mono">
+            <div key={card.key} className={`${card.bg} border-2 ${card.border} rounded-xl p-4 flex flex-col gap-1`} data-testid={`tml-card-${card.key}`}>
+              <span className={`text-xs font-medium uppercase tracking-wide ${card.sub}`}>{card.label}</span>
+              <span className={`text-2xl font-bold font-mono ${card.text}`}>
                 {isLoading ? "–" : minToHMS(avg(card.key))}
               </span>
-              <span className="text-xs text-white/70">{filtered.length} mapas</span>
+              <span className={`text-xs ${card.sub}`}>{filtered.length} mapas</span>
             </div>
           ))}
         </div>
