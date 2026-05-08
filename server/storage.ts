@@ -102,13 +102,12 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async getAdherenceReport() {
-    // 1. Todos os mapas esperados (do WMS upload)
+    // 1. Mapas esperados do WMS atual (plano do dia)
     const wmsRows = await db.selectDistinct({ mapNumber: wmsItems.mapNumber }).from(wmsItems);
     const expectedMaps = new Set(wmsRows.map(r => r.mapNumber.trim()));
 
-    // 2. Todas as conferências (qualquer status) para saber driverId e status por mapa
+    // 2. Todas as conferências históricas (qualquer status)
     const allConfs = await db.select().from(conferences);
-    // Mapa de mapNumber → melhor conference (completed > in_progress > pending)
     const statusPriority: Record<string, number> = { completed: 3, in_progress: 2, pending: 1 };
     const confByMap = new Map<string, typeof allConfs[0]>();
     for (const c of allConfs) {
@@ -117,6 +116,12 @@ export class DatabaseStorage implements IStorage {
       if (!existing || (statusPriority[c.status] ?? 0) > (statusPriority[existing.status] ?? 0)) {
         confByMap.set(key, c);
       }
+    }
+
+    // Adicionar ao conjunto de mapas todas as conferências históricas
+    // (preserva o histórico mesmo após novo upload do WMS)
+    for (const mapNumber of confByMap.keys()) {
+      expectedMaps.add(mapNumber);
     }
 
     // 3. Motoristas pelo driverBase para resolver nomes
@@ -154,7 +159,6 @@ export class DatabaseStorage implements IStorage {
       if (driverId) {
         driverName = nameByReg.get(normalizeReg(driverId)) ?? null;
       }
-      // Fallback: promax
       if (!driverName) {
         const promaxName = promaxByMap.get(mapNumber);
         if (promaxName) driverName = promaxName;

@@ -40961,6 +40961,9 @@ var DatabaseStorage = class {
         confByMap.set(key, c);
       }
     }
+    for (const mapNumber of confByMap.keys()) {
+      expectedMaps.add(mapNumber);
+    }
     const allDrivers = await db.select().from(driverBase);
     const nameByReg = /* @__PURE__ */ new Map();
     allDrivers.forEach((d) => nameByReg.set(normalizeReg(d.registration), d.name));
