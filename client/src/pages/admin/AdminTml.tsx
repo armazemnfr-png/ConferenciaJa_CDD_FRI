@@ -4,7 +4,7 @@ import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from "recharts";
-import { Calendar, Filter, Map } from "lucide-react";
+import { Calendar, Filter, MapPin } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -145,7 +145,7 @@ export default function AdminTml() {
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2">
-            <Map className="h-4 w-4 text-gray-400" />
+            <MapPin className="h-4 w-4 text-gray-400" />
             <Input
               type="text"
               placeholder="Filtrar mapa..."
