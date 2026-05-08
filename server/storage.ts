@@ -398,7 +398,8 @@ export class DatabaseStorage implements IStorage {
   async getWmsItemsByMap(mapNumber: string): Promise<WmsItem[]> {
     const normalizedMap = String(mapNumber).trim().toUpperCase();
     return await db.select().from(wmsItems)
-      .where(sql`upper(trim(${wmsItems.mapNumber})) = ${normalizedMap}`);
+      .where(sql`upper(trim(${wmsItems.mapNumber})) = ${normalizedMap}`)
+      .orderBy(wmsItems.id);
   }
 
   async getWmsItem(id: number): Promise<WmsItem | undefined> {

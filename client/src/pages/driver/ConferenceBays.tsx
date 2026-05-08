@@ -126,7 +126,10 @@ const ConferenceBays = () => {
     return `${parts[1] || ''}${(parts[0] || '').replace('P', '').padStart(2, '0')}`;
   };
 
-  const uniqueBays = Array.from(new Set(items.map(i => i.bay_number))).sort();
+  const uniqueBays = items.reduce<string[]>((acc, i) => {
+    if (i.bay_number && !acc.includes(i.bay_number)) acc.push(i.bay_number);
+    return acc;
+  }, []);
   const ajudanteBays = uniqueBays.filter(b => b && b.split('_')[1] === 'A');
   const motoristaBays = uniqueBays.filter(b => b && b.split('_')[1] === 'M');
 
