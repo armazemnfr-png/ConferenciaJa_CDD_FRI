@@ -38,7 +38,7 @@ const COLORS = {
 
 const METRIC_COLORS = [
   { bg: "bg-blue-50",    border: "border-blue-400",    text: "text-blue-700",    sub: "text-blue-400",   label: "TML Total",        key: "tmlMin" as const },
-  { bg: "bg-blue-50",    border: "border-blue-300",    text: "text-blue-600",    sub: "text-blue-300",   label: "Matinal",          key: "matinalMin" as const },
+  { bg: "bg-pink-50",    border: "border-pink-400",    text: "text-pink-700",    sub: "text-pink-400",   label: "Matinal",          key: "matinalMin" as const },
   { bg: "bg-amber-50",   border: "border-amber-400",   text: "text-amber-700",   sub: "text-amber-400",  label: "Matinal → Pátio",  key: "matinalPatioMin" as const },
   { bg: "bg-emerald-50", border: "border-emerald-400", text: "text-emerald-700", sub: "text-emerald-400",label: "Checklist",         key: "checklistMin" as const },
   { bg: "bg-violet-50",  border: "border-violet-400",  text: "text-violet-700",  sub: "text-violet-400", label: "Pátio → Portaria", key: "patioPortariaMin" as const },
