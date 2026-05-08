@@ -95,6 +95,17 @@ export const ginfoChecklist = pgTable("ginfo_checklist", {
   importedAt: timestamp("imported_at").defaultNow(),
 });
 
+export const uploadMeta = pgTable("upload_meta", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(),
+  fileName: text("file_name").notNull(),
+  recordCount: integer("record_count").notNull(),
+  importedAt: timestamp("imported_at").defaultNow(),
+});
+
+export const insertUploadMetaSchema = createInsertSchema(uploadMeta).omit({ id: true, importedAt: true });
+export type UploadMeta = typeof uploadMeta.$inferSelect;
+
 export const insertConferenceSchema = createInsertSchema(conferences).omit({ id: true, createdAt: true });
 export const insertWmsItemSchema = createInsertSchema(wmsItems).omit({ id: true });
 export const insertPromaxDataSchema = createInsertSchema(promaxData).omit({ id: true });

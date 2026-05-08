@@ -1,21 +1,45 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
-import { Upload, CheckCircle, AlertCircle, Package, Truck, Users, Loader2, ArrowLeft, ClipboardCheck } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, Package, Truck, Users, Loader2, ArrowLeft, ClipboardCheck, FileText, Clock } from 'lucide-react';
 import { Link } from 'wouter';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 type UploadType = 'WMS' | 'PW' | 'MOT' | 'GINFO';
+
+interface UploadMeta {
+  id: number;
+  type: string;
+  fileName: string;
+  recordCount: number;
+  importedAt: string;
+}
+
+const configs: Record<UploadType, { title: string; icon: React.ReactNode; endpoint: string }> = {
+  WMS:   { title: "Relatório WMS (Itens)",               icon: <Package className="w-5 h-5" />,       endpoint: '/api/wms-items/upload' },
+  PW:    { title: "Relatório PW 031120 (Promax)",         icon: <Truck className="w-5 h-5" />,          endpoint: '/api/promax/upload' },
+  MOT:   { title: "Base Matrícula (Motoristas)",          icon: <Users className="w-5 h-5" />,          endpoint: '/api/motoristas/upload' },
+  GINFO: { title: "Checklist Ginfo (Saída de Veículos)",  icon: <ClipboardCheck className="w-5 h-5" />, endpoint: '/api/ginfo/upload' }
+};
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 
 const UploadDados = () => {
   const [activeTab, setActiveTab] = useState<UploadType>('WMS');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
+  const queryClient = useQueryClient();
 
-  const configs = {
-    WMS: { title: "Relatório WMS (Itens)", icon: <Package className="w-5 h-5" />, endpoint: '/api/wms-items/upload' },
-    PW: { title: "Relatório PW 031120 (Promax)", icon: <Truck className="w-5 h-5" />, endpoint: '/api/promax/upload' },
-    MOT: { title: "Base Matrícula (Motoristas)", icon: <Users className="w-5 h-5" />, endpoint: '/api/motoristas/upload' },
-    GINFO: { title: "Checklist Ginfo (Saída de Veículos)", icon: <ClipboardCheck className="w-5 h-5" />, endpoint: '/api/ginfo/upload' }
-  };
+  const { data: metaList = [] } = useQuery<UploadMeta[]>({
+    queryKey: ['/api/upload-meta'],
+  });
+
+  const metaByType = metaList.reduce<Record<string, UploadMeta>>((acc, m) => {
+    acc[m.type] = m;
+    return acc;
+  }, {});
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -33,7 +57,6 @@ const UploadDados = () => {
           let items: any[] = [];
 
           if (activeTab === 'WMS') {
-            // Mapeamento e limpeza de dados do WMS
             items = results.data.map((item: any) => ({
               warehouseCode: String(item['Código do Armazém'] || ""),
               mapNumber: String(item['Mapas'] || "").trim(),
@@ -54,7 +77,7 @@ const UploadDados = () => {
               checkedQuantity: 0,
               hasDamage: false
             })).filter((item: any) => item.mapNumber && item.description && item.mapNumber !== "undefined");
-          } 
+          }
           else if (activeTab === 'PW') {
             items = results.data.map((item: any) => ({
               mapa: String(item['Mapa'] || "").trim(),
@@ -66,7 +89,7 @@ const UploadDados = () => {
               placa: String(item['Placa'] || "").trim(),
               tipoMapa: String(item['TipoMapa'] || item['Tipo Mapa'] || item['Tipo_Mapa'] || item['tipo_mapa'] || "").trim(),
             })).filter((item: any) => item.mapa && item.fase);
-          } 
+          }
           else if (activeTab === 'MOT') {
             items = results.data.map((item: any) => ({
               registration: String(item['Matrícula'] || "").trim(),
@@ -75,26 +98,13 @@ const UploadDados = () => {
             })).filter((item: any) => item.registration && item.registration !== "");
           }
           else if (activeTab === 'GINFO') {
-            // Colunas: G=REALIZADO POR, H=EQUIPE, N=MAPA, R=HR INICIO, S=HR FINAL, T=TEMPO
             items = results.data.map((row: any) => {
-              const realizadoPor = String(
-                row['REALIZADO POR'] || row['Realizado Por'] || row['realizado_por'] || ""
-              ).trim();
-              const equipe = String(
-                row['EQUIPE'] || row['Equipe'] || row['equipe'] || ""
-              ).trim();
-              const mapa = String(
-                row['MAPA'] || row['Mapa'] || row['mapa'] || ""
-              ).trim();
-              const tempo = String(
-                row['TEMPO'] || row['Tempo'] || row['tempo'] || ""
-              ).trim();
-              const hrInicio = String(
-                row['HR INICIO'] || row['Hr Inicio'] || row['HR_INICIO'] || row['HrInicio'] || row['HRINICIO'] || ""
-              ).trim();
-              const hrFinal = String(
-                row['HR FINAL'] || row['Hr Final'] || row['HR_FINAL'] || row['HrFinal'] || row['HRFINAL'] || ""
-              ).trim();
+              const realizadoPor = String(row['REALIZADO POR'] || row['Realizado Por'] || row['realizado_por'] || "").trim();
+              const equipe = String(row['EQUIPE'] || row['Equipe'] || row['equipe'] || "").trim();
+              const mapa = String(row['MAPA'] || row['Mapa'] || row['mapa'] || "").trim();
+              const tempo = String(row['TEMPO'] || row['Tempo'] || row['tempo'] || "").trim();
+              const hrInicio = String(row['HR INICIO'] || row['Hr Inicio'] || row['HR_INICIO'] || row['HrInicio'] || row['HRINICIO'] || "").trim();
+              const hrFinal = String(row['HR FINAL'] || row['Hr Final'] || row['HR_FINAL'] || row['HrFinal'] || row['HRFINAL'] || "").trim();
               return { realizadoPor, equipe, mapa, tempo, hrInicio, hrFinal };
             }).filter((item: any) => item.mapa && item.mapa !== "undefined" && item.tempo);
           }
@@ -103,20 +113,19 @@ const UploadDados = () => {
             throw new Error(`Nenhum dado válido encontrado. Certifique-se de que o arquivo é um CSV e os cabeçalhos estão corretos.`);
           }
 
-          console.log(`Enviando ${items.length} itens para ${configs[activeTab].endpoint}`);
-
           const response = await fetch(configs[activeTab].endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items }),
+            body: JSON.stringify({ items, fileName: file.name }),
           });
 
           const result = await response.json();
           if (!response.ok) throw new Error(result.message || "Erro no servidor");
 
-          setStatus({ 
-            type: 'success', 
-            msg: `Sucesso! ${items.length} registros processados. A base anterior de ${activeTab} foi limpa.` 
+          queryClient.invalidateQueries({ queryKey: ['/api/upload-meta'] });
+          setStatus({
+            type: 'success',
+            msg: `Sucesso! ${items.length} registros importados. A base anterior de ${activeTab} foi limpa.`
           });
 
         } catch (err: any) {
@@ -124,7 +133,7 @@ const UploadDados = () => {
           setStatus({ type: 'error', msg: err.message || 'Erro ao processar arquivo.' });
         } finally {
           setLoading(false);
-          if (e.target) e.target.value = ''; 
+          if (e.target) e.target.value = '';
         }
       }
     });
@@ -144,21 +153,42 @@ const UploadDados = () => {
       </div>
       <h1 className="text-3xl font-bold mb-8 text-center text-gray-800">Painel de Importação</h1>
 
-      <div className="flex border-b border-gray-200 mb-8">
-        {(Object.keys(configs) as UploadType[]).map((tab) => (
-          <button
-            key={tab}
-            disabled={loading}
-            onClick={() => { setActiveTab(tab); setStatus(null); }}
-            className={`flex-1 py-4 px-6 flex items-center justify-center gap-2 font-medium transition-all
-              ${activeTab === tab 
-                ? 'border-b-4 border-blue-600 text-blue-600 bg-blue-50' 
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-          >
-            {configs[tab].icon}
-            {tab}
-          </button>
-        ))}
+      {/* Cards de status por relatório */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {(Object.keys(configs) as UploadType[]).map((tab) => {
+          const meta = metaByType[tab];
+          return (
+            <button
+              key={tab}
+              onClick={() => { setActiveTab(tab); setStatus(null); }}
+              className={`rounded-xl border p-4 text-left transition-all ${
+                activeTab === tab
+                  ? 'border-blue-500 bg-blue-50 shadow-sm'
+                  : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-gray-50'
+              }`}
+            >
+              <div className={`flex items-center gap-2 font-semibold text-sm mb-2 ${activeTab === tab ? 'text-blue-700' : 'text-gray-700'}`}>
+                {configs[tab].icon}
+                {tab}
+              </div>
+              {meta ? (
+                <>
+                  <div className="flex items-start gap-1 text-xs text-gray-600 mb-1">
+                    <FileText className="w-3 h-3 mt-0.5 shrink-0 text-green-600" />
+                    <span className="break-all leading-tight font-medium text-gray-800">{meta.fileName}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-gray-400">
+                    <Clock className="w-3 h-3 shrink-0" />
+                    <span>{formatDate(meta.importedAt)}</span>
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">{meta.recordCount.toLocaleString('pt-BR')} registros</div>
+                </>
+              ) : (
+                <div className="text-xs text-gray-400 italic">Nenhum arquivo importado</div>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border p-8">

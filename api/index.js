@@ -40725,13 +40725,15 @@ __export(schema_exports, {
   insertGinfoChecklistSchema: () => insertGinfoChecklistSchema,
   insertMatinalSchema: () => insertMatinalSchema,
   insertPromaxDataSchema: () => insertPromaxDataSchema,
+  insertUploadMetaSchema: () => insertUploadMetaSchema,
   insertWmsItemSchema: () => insertWmsItemSchema,
   matinals: () => matinals,
   promaxData: () => promaxData,
   updateWmsItemSchema: () => updateWmsItemSchema,
+  uploadMeta: () => uploadMeta,
   wmsItems: () => wmsItems
 });
-var conferences, matinals, wmsItems, promaxData, driverBase, ginfoChecklist, insertConferenceSchema, insertWmsItemSchema, insertPromaxDataSchema, insertDriverBaseSchema, insertGinfoChecklistSchema, insertMatinalSchema, updateWmsItemSchema;
+var conferences, matinals, wmsItems, promaxData, driverBase, ginfoChecklist, uploadMeta, insertUploadMetaSchema, insertConferenceSchema, insertWmsItemSchema, insertPromaxDataSchema, insertDriverBaseSchema, insertGinfoChecklistSchema, insertMatinalSchema, updateWmsItemSchema;
 var init_schema2 = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -40826,6 +40828,14 @@ var init_schema2 = __esm({
       hrFinal: text("hr_final"),
       importedAt: timestamp("imported_at").defaultNow()
     });
+    uploadMeta = pgTable("upload_meta", {
+      id: serial("id").primaryKey(),
+      type: text("type").notNull(),
+      fileName: text("file_name").notNull(),
+      recordCount: integer("record_count").notNull(),
+      importedAt: timestamp("imported_at").defaultNow()
+    });
+    insertUploadMetaSchema = createInsertSchema(uploadMeta).omit({ id: true, importedAt: true });
     insertConferenceSchema = createInsertSchema(conferences).omit({ id: true, createdAt: true });
     insertWmsItemSchema = createInsertSchema(wmsItems).omit({ id: true });
     insertPromaxDataSchema = createInsertSchema(promaxData).omit({ id: true });
@@ -41147,7 +41157,7 @@ var DatabaseStorage = class {
   }
   async getWmsItemsByMap(mapNumber) {
     const normalizedMap = String(mapNumber).trim().toUpperCase();
-    return await db.select().from(wmsItems).where(sql`upper(trim(${wmsItems.mapNumber})) = ${normalizedMap}`);
+    return await db.select().from(wmsItems).where(sql`upper(trim(${wmsItems.mapNumber})) = ${normalizedMap}`).orderBy(wmsItems.id);
   }
   async getWmsItem(id) {
     const [item] = await db.select().from(wmsItems).where(eq(wmsItems.id, id));
@@ -41279,6 +41289,13 @@ var DatabaseStorage = class {
       avgMinutes: Number((total / count).toFixed(3)),
       count
     })).sort((a, b) => a.room.localeCompare(b.room));
+  }
+  async saveUploadMeta(type, fileName, recordCount) {
+    await db.delete(uploadMeta).where(eq(uploadMeta.type, type));
+    await db.insert(uploadMeta).values({ type, fileName, recordCount });
+  }
+  async getUploadMeta() {
+    return await db.select().from(uploadMeta);
   }
   async getDashboardMetrics(filters) {
     const filteredConferences = await this.getConferences(filters);
@@ -41509,11 +41526,12 @@ async function registerRoutes(httpServer2, app2) {
   });
   app2.post("/api/ginfo/upload", async (req, res) => {
     try {
-      const { items } = req.body;
+      const { items, fileName } = req.body;
       if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: "Nenhum item enviado." });
       }
       await storage.bulkInsertGinfoChecklist(items);
+      await storage.saveUploadMeta("GINFO", fileName || "desconhecido", items.length);
       res.json({ success: true, count: items.length });
     } catch (err) {
       console.error("Erro ao importar Ginfo:", err);
@@ -41713,25 +41731,19 @@ async function registerRoutes(httpServer2, app2) {
       res.status(404).json({ message: "Item not found" });
     }
   });
-  app2.post("/api/promax/upload", async (req, res) => {
+  app2.get("/api/upload-meta", async (req, res) => {
     try {
-      await storage.bulkInsertPromaxData(req.body.items);
-      res.status(201).json({ success: true });
+      const meta = await storage.getUploadMeta();
+      res.json(meta);
     } catch (err) {
-      res.status(500).json({ message: "Upload failed" });
-    }
-  });
-  app2.post("/api/motoristas/upload", async (req, res) => {
-    try {
-      await storage.bulkInsertDriverBase(req.body.items);
-      res.status(201).json({ success: true });
-    } catch (err) {
-      res.status(500).json({ message: "Upload failed" });
+      res.status(500).json({ message: "Erro ao buscar metadados de upload" });
     }
   });
   app2.post("/api/promax/upload", async (req, res) => {
     try {
-      await storage.bulkInsertPromaxData(req.body.items);
+      const { items, fileName } = req.body;
+      await storage.bulkInsertPromaxData(items);
+      await storage.saveUploadMeta("PW", fileName || "desconhecido", items.length);
       res.status(201).json({ success: true });
     } catch (err) {
       console.error("Erro no upload Promax:", err);
@@ -41740,7 +41752,9 @@ async function registerRoutes(httpServer2, app2) {
   });
   app2.post("/api/motoristas/upload", async (req, res) => {
     try {
-      await storage.bulkInsertDriverBase(req.body.items);
+      const { items, fileName } = req.body;
+      await storage.bulkInsertDriverBase(items);
+      await storage.saveUploadMeta("MOT", fileName || "desconhecido", items.length);
       res.status(201).json({ success: true });
     } catch (err) {
       console.error("Erro no upload Motoristas:", err);
@@ -41749,10 +41763,10 @@ async function registerRoutes(httpServer2, app2) {
   });
   app2.post("/api/wms-items/upload", async (req, res) => {
     try {
-      if (!req.body.items) {
-        return res.status(400).json({ message: "Nenhum item enviado" });
-      }
-      await storage.bulkInsertWmsItems(req.body.items);
+      const { items, fileName } = req.body;
+      if (!items) return res.status(400).json({ message: "Nenhum item enviado" });
+      await storage.bulkInsertWmsItems(items);
+      await storage.saveUploadMeta("WMS", fileName || "desconhecido", items.length);
       res.status(201).json({ success: true });
     } catch (err) {
       console.error("Erro no upload WMS:", err);

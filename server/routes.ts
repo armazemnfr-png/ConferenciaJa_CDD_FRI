@@ -100,11 +100,12 @@ export async function registerRoutes(
   // --- GINFO CHECKLIST ---
   app.post("/api/ginfo/upload", async (req, res) => {
     try {
-      const { items } = req.body;
+      const { items, fileName } = req.body;
       if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: "Nenhum item enviado." });
       }
       await storage.bulkInsertGinfoChecklist(items);
+      await storage.saveUploadMeta('GINFO', fileName || 'desconhecido', items.length);
       res.json({ success: true, count: items.length });
     } catch (err) {
       console.error("Erro ao importar Ginfo:", err);
@@ -327,29 +328,22 @@ export async function registerRoutes(
     }
   });
 
+  // --- UPLOAD META ---
+  app.get('/api/upload-meta', async (req, res) => {
+    try {
+      const meta = await storage.getUploadMeta();
+      res.json(meta);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao buscar metadados de upload" });
+    }
+  });
+
   // --- UPLOADS ---
   app.post('/api/promax/upload', async (req, res) => {
     try {
-      await storage.bulkInsertPromaxData(req.body.items);
-      res.status(201).json({ success: true });
-    } catch (err) {
-      res.status(500).json({ message: "Upload failed" });
-    }
-  });
-
-  app.post('/api/motoristas/upload', async (req, res) => {
-    try {
-      await storage.bulkInsertDriverBase(req.body.items);
-      res.status(201).json({ success: true });
-    } catch (err) {
-      res.status(500).json({ message: "Upload failed" });
-    }
-  });
-
-  // --- UPLOADS (CAMINHO DIRETO PARA EVITAR BLOQUEIO) ---
-  app.post('/api/promax/upload', async (req, res) => {
-    try {
-      await storage.bulkInsertPromaxData(req.body.items);
+      const { items, fileName } = req.body;
+      await storage.bulkInsertPromaxData(items);
+      await storage.saveUploadMeta('PW', fileName || 'desconhecido', items.length);
       res.status(201).json({ success: true });
     } catch (err) {
       console.error("Erro no upload Promax:", err);
@@ -359,7 +353,9 @@ export async function registerRoutes(
 
   app.post('/api/motoristas/upload', async (req, res) => {
     try {
-      await storage.bulkInsertDriverBase(req.body.items);
+      const { items, fileName } = req.body;
+      await storage.bulkInsertDriverBase(items);
+      await storage.saveUploadMeta('MOT', fileName || 'desconhecido', items.length);
       res.status(201).json({ success: true });
     } catch (err) {
       console.error("Erro no upload Motoristas:", err);
@@ -367,14 +363,12 @@ export async function registerRoutes(
     }
   });
 
-  // Alteramos aqui de api.wmsItems.upload.path para a string direta
   app.post('/api/wms-items/upload', async (req, res) => {
     try {
-      // O seu código original usava z.parse, vamos simplificar para garantir o fluxo
-      if (!req.body.items) {
-        return res.status(400).json({ message: "Nenhum item enviado" });
-      }
-      await storage.bulkInsertWmsItems(req.body.items);
+      const { items, fileName } = req.body;
+      if (!items) return res.status(400).json({ message: "Nenhum item enviado" });
+      await storage.bulkInsertWmsItems(items);
+      await storage.saveUploadMeta('WMS', fileName || 'desconhecido', items.length);
       res.status(201).json({ success: true });
     } catch (err) {
       console.error("Erro no upload WMS:", err);

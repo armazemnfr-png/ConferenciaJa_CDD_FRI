@@ -6,6 +6,7 @@ import {
   driverBase,
   matinals,
   ginfoChecklist,
+  uploadMeta,
   type Conference,
   type WmsItem,
   type PromaxData,
@@ -18,6 +19,7 @@ import {
   type InsertDriverBase,
   type InsertMatinal,
   type UpdateConferenceRequest,
+  type UploadMeta,
   type UpdateWmsItemRequest,
   type DashboardMetrics,
   type TmlRecord
@@ -94,6 +96,8 @@ export interface IStorage {
   }>;
   deleteConference(id: number): Promise<void>;
   deleteMatinal(id: number): Promise<void>;
+  saveUploadMeta(type: string, fileName: string, recordCount: number): Promise<void>;
+  getUploadMeta(): Promise<UploadMeta[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -572,6 +576,15 @@ export class DatabaseStorage implements IStorage {
         count,
       }))
       .sort((a, b) => a.room.localeCompare(b.room));
+  }
+
+  async saveUploadMeta(type: string, fileName: string, recordCount: number): Promise<void> {
+    await db.delete(uploadMeta).where(eq(uploadMeta.type, type));
+    await db.insert(uploadMeta).values({ type, fileName, recordCount });
+  }
+
+  async getUploadMeta(): Promise<UploadMeta[]> {
+    return await db.select().from(uploadMeta);
   }
 
   async getDashboardMetrics(filters?: any): Promise<DashboardMetrics> {
