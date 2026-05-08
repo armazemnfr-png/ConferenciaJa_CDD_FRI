@@ -4,7 +4,7 @@ import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from "recharts";
-import { Calendar, Clock, Users, Filter, ChevronDown } from "lucide-react";
+import { Calendar, Filter, Map } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +46,7 @@ const METRIC_COLORS = [
 
 export default function AdminTml() {
   const [filterSala, setFilterSala] = useState("all");
+  const [filterMapa, setFilterMapa] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -62,6 +63,7 @@ export default function AdminTml() {
   const filtered = useMemo(() => {
     return rawData.filter(r => {
       if (filterSala !== "all" && r.sala.toUpperCase() !== filterSala) return false;
+      if (filterMapa && !r.mapa.toLowerCase().includes(filterMapa.toLowerCase())) return false;
       const d = parseDisplayDate(r.dtOper);
       if (!d) return true;
       const ds = localDateStr(d);
@@ -69,7 +71,7 @@ export default function AdminTml() {
       if (endDate && ds > endDate) return false;
       return true;
     });
-  }, [rawData, filterSala, startDate, endDate]);
+  }, [rawData, filterSala, filterMapa, startDate, endDate]);
 
   const avg = (key: keyof TmlRecord) =>
     filtered.length > 0
@@ -143,13 +145,24 @@ export default function AdminTml() {
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2">
+            <Map className="h-4 w-4 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Filtrar mapa..."
+              className="w-36 text-sm"
+              value={filterMapa}
+              onChange={e => setFilterMapa(e.target.value)}
+              data-testid="filter-mapa"
+            />
+          </div>
+          <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-gray-400" />
             <Input type="date" className="w-36 text-sm" value={startDate} onChange={e => setStartDate(e.target.value)} data-testid="filter-start-date" />
             <span className="text-gray-400 text-sm">–</span>
             <Input type="date" className="w-36 text-sm" value={endDate} onChange={e => setEndDate(e.target.value)} data-testid="filter-end-date" />
           </div>
-          {(filterSala !== "all" || startDate || endDate) && (
-            <Badge variant="secondary" className="cursor-pointer" onClick={() => { setFilterSala("all"); setStartDate(""); setEndDate(""); }}>
+          {(filterSala !== "all" || filterMapa || startDate || endDate) && (
+            <Badge variant="secondary" className="cursor-pointer" onClick={() => { setFilterSala("all"); setFilterMapa(""); setStartDate(""); setEndDate(""); }}>
               Limpar filtros
             </Badge>
           )}
