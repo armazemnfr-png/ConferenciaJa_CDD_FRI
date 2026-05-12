@@ -312,9 +312,10 @@ export class DatabaseStorage implements IStorage {
       }) : undefined;
 
       // Matinal
+      // actualEndTime é UTC → converter para horário local Brasil (UTC-3): subtrair 180 min
       const matinalMin = matchingMatinal?.durationMinutes ?? 0;
       const matinalEndMin = matchingMatinal && matchingMatinal.actualEndTime
-        ? (new Date(matchingMatinal.actualEndTime).getHours() * 60 + new Date(matchingMatinal.actualEndTime).getMinutes())
+        ? (new Date(matchingMatinal.actualEndTime).getUTCHours() * 60 + new Date(matchingMatinal.actualEndTime).getUTCMinutes() - 180)
         : 0;
 
       // Checklist
