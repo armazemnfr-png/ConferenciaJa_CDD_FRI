@@ -250,7 +250,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getGinfoChecklist(): Promise<GinfoChecklist[]> {
-    return await db.select().from(ginfoChecklist).orderBy(desc(ginfoChecklist.importedAt));
+    const rows = await db.select().from(ginfoChecklist).orderBy(desc(ginfoChecklist.importedAt));
+
+    // Enriquecer com nome do motorista quando realizadoPor estiver vazio
+    const allDrivers = await db.select().from(driverBase);
+    const nameByReg = new Map<string, string>();
+    allDrivers.forEach(d => nameByReg.set(normalizeReg(d.registration), d.name));
+
+    const allPromax = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista }).from(promaxData);
+    const regByMap = new Map<string, string>();
+    allPromax.forEach(p => { if (p.mapa && p.motorista) regByMap.set(p.mapa.trim(), p.motorista.trim()); });
+
+    return rows.map(r => {
+      if (r.realizadoPor && r.realizadoPor.trim()) return r;
+      const reg = regByMap.get(r.mapa.trim());
+      const name = reg ? (nameByReg.get(normalizeReg(reg)) ?? null) : null;
+      return name ? { ...r, realizadoPor: name } : r;
+    });
   }
 
   async getTmlData(): Promise<TmlRecord[]> {
