@@ -329,21 +329,35 @@ export class DatabaseStorage implements IStorage {
         ? Math.max(0, checklistStartMin - matinalEndMin)
         : 0;
 
-      // Pátio → Portaria
       const portariaMin = portaria.hrOper ? tmlTimeToMin(portaria.hrOper) : 0;
-      const effectiveEnd = checklistEndMin || (checklistStartMin + checklistMin);
-      const patioPortariaMin = (portariaMin > 0 && effectiveEnd > 0)
-        ? Math.max(0, portariaMin - effectiveEnd)
-        : 0;
 
       // Tempo de Conferência (da tabela conferences: endTime - startTime)
+      // Horários UTC → horário local Brasil (UTC-3): subtrair 180 minutos
       const conf = confByMap.get(portaria.mapa.trim().toUpperCase());
       let conferenceMin = 0;
+      let confStartLocalMin = 0;
+      let confEndLocalMin = 0;
       if (conf?.startTime && conf?.endTime) {
-        const diffMs = new Date(conf.endTime).getTime() - new Date(conf.startTime).getTime();
-        const diffMin = diffMs / 60000;
+        const startDt = new Date(conf.startTime);
+        const endDt = new Date(conf.endTime);
+        confStartLocalMin = startDt.getUTCHours() * 60 + startDt.getUTCMinutes() - 180;
+        confEndLocalMin = endDt.getUTCHours() * 60 + endDt.getUTCMinutes() - 180;
+        const diffMin = (endDt.getTime() - startDt.getTime()) / 60000;
         if (diffMin > 0 && diffMin < 600) conferenceMin = Math.round(diffMin * 10) / 10;
       }
+
+      // Checklist → Conferência (gap entre fim do checklist e início da conferência)
+      const effectiveChecklistEnd = checklistEndMin || (checklistStartMin + checklistMin);
+      const checklistConferenceMin = (confStartLocalMin > 0 && effectiveChecklistEnd > 0)
+        ? Math.max(0, confStartLocalMin - effectiveChecklistEnd)
+        : 0;
+
+      // Pátio → Portaria (gap entre fim da conferência e saída na portaria)
+      // Se não há conferência, usa fim do checklist como base
+      const referenceEnd = confEndLocalMin > 0 ? confEndLocalMin : effectiveChecklistEnd;
+      const patioPortariaMin = (portariaMin > 0 && referenceEnd > 0)
+        ? Math.max(0, portariaMin - referenceEnd)
+        : 0;
 
       results.push({
         mapa: portaria.mapa,
@@ -357,9 +371,10 @@ export class DatabaseStorage implements IStorage {
         matinalMin,
         matinalPatioMin,
         checklistMin,
+        checklistConferenceMin,
         conferenceMin,
         patioPortariaMin,
-        tmlMin: matinalMin + matinalPatioMin + checklistMin + patioPortariaMin,
+        tmlMin: matinalMin + matinalPatioMin + checklistMin + checklistConferenceMin + conferenceMin + patioPortariaMin,
       });
     }
 

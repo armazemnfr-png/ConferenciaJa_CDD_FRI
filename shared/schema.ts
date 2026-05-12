@@ -166,6 +166,7 @@ export interface TmlRecord {
   matinalMin: number;
   matinalPatioMin: number;
   checklistMin: number;
+  checklistConferenceMin: number;
   conferenceMin: number;
   patioPortariaMin: number;
   tmlMin: number;
