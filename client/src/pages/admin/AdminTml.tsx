@@ -25,10 +25,9 @@ function minToHMS(min: number): string {
 }
 
 function secToDisplay(sec: number): string {
-  if (sec < 60) return `${sec}s`;
   const m = Math.floor(sec / 60);
   const s = sec % 60;
-  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 function parseDisplayDate(dtOper: string): Date | null {
