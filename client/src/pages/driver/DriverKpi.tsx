@@ -112,7 +112,23 @@ export default function DriverKpi() {
             data-testid="card-kpi-resultado"
             className="mt-4 bg-white border border-slate-200 rounded-2xl shadow-md p-5 animate-in fade-in slide-in-from-bottom-2"
           >
-            <pre className="whitespace-pre-wrap font-sans text-sm text-slate-800 leading-relaxed">{mensagem}</pre>
+            <div className="whitespace-pre-wrap font-sans text-sm text-slate-800 leading-relaxed">
+              {mensagem.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+                /^https?:\/\//.test(part) ? (
+                  <a
+                    key={i}
+                    href={part}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#0056b3] underline font-semibold break-all"
+                  >
+                    {part}
+                  </a>
+                ) : (
+                  <span key={i}>{part}</span>
+                )
+              )}
+            </div>
           </div>
         )}
       </div>
