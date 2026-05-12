@@ -138,7 +138,7 @@ export default function DriverLogin() {
             type="button"
             onClick={() => setLocation("/driver/kpi")}
             data-testid="button-ver-kpi"
-            className="w-full flex items-center justify-center gap-2 bg-[#0056b3] hover:bg-[#004494] text-black py-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-500/20 transition-all"
+            className="w-full flex items-center justify-center gap-2 bg-[#0056b3] hover:bg-[#004494] text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-500/20 transition-all"
           >
             <BarChart2 className="w-5 h-5" />
             Ver resultados KPIs
