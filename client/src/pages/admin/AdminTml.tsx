@@ -4,7 +4,8 @@ import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from "recharts";
-import { Calendar, Filter, MapPin, AlertTriangle } from "lucide-react";
+import { Calendar, Filter, MapPin, AlertTriangle, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -124,6 +125,39 @@ export default function AdminTml() {
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [filtered]);
 
+  function exportCsv() {
+    const headers = [
+      "Mapa", "Motorista", "Sala", "Data", "Hr Portaria",
+      "Matinal (mm:ss)", "Mat→Pát (mm:ss)", "Checklist (mm:ss)",
+      "CK→Conf (mm:ss)", "Conferência (mm:ss)", "Conf→Port (mm:ss)", "TML (mm:ss)"
+    ];
+    const rows = filtered.map(r => [
+      r.mapa,
+      r.nome || r.motorista,
+      r.sala,
+      r.dtOper,
+      r.hrPortaria,
+      minToHMS(r.matinalMin),
+      r.matPatioOverlap ? "sobreposição" : r.matinalPatioMin > 0 ? minToHMS(r.matinalPatioMin) : "",
+      r.checklistMin > 0 ? minToHMS(r.checklistMin) : "",
+      r.ckConfOverlap ? "sobreposição" : r.checklistConferenceSec > 0 ? secToDisplay(r.checklistConferenceSec) : "",
+      r.conferenceMin > 0 ? minToHMS(r.conferenceMin) : "",
+      r.patioPortariaMin > 0 ? minToHMS(r.patioPortariaMin) : "",
+      minToHMS(r.tmlMin),
+    ]);
+    const csv = [headers, ...rows]
+      .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";"))
+      .join("\n");
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `TML_${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
@@ -232,8 +266,21 @@ export default function AdminTml() {
         {/* Tabela */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-700">Detalhamento por mapa</h2>
-            <span className="text-xs text-gray-400">{filtered.length} registros</span>
+            <div>
+              <h2 className="text-sm font-semibold text-gray-700">Detalhamento por mapa</h2>
+              <span className="text-xs text-gray-400">{filtered.length} registros</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportCsv}
+              disabled={filtered.length === 0}
+              data-testid="button-export-tml"
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Exportar CSV
+            </Button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
