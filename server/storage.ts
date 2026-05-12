@@ -40,6 +40,9 @@ function tmlParseDt(dtOper: string): Date | null {
 }
 function tmlTimeToMin(t: string): number {
   if (!t) return 0;
+  // Suporta "DD/MM/YYYY HH:MM" e "HH:MM" e "HH:MM:SS"
+  const dtMatch = t.match(/(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (dtMatch) return parseInt(dtMatch[1]) * 60 + parseInt(dtMatch[2]);
   const p = t.split(":");
   return parseInt(p[0] || "0") * 60 + parseInt(p[1] || "0");
 }
@@ -278,6 +281,17 @@ export class DatabaseStorage implements IStorage {
     const ginfoByMapa = new Map<string, GinfoChecklist>();
     [...ginfoAll].reverse().forEach(g => ginfoByMapa.set(g.mapa.trim().toUpperCase(), g));
 
+    // Índice de conferências por mapa para o tempo de conferência
+    const allConfs = await db.select().from(conferences);
+    const confByMap = new Map<string, typeof allConfs[0]>();
+    for (const c of allConfs) {
+      const key = c.mapNumber.trim().toUpperCase();
+      const existing = confByMap.get(key);
+      if (!existing || (c.status === 'completed' && existing.status !== 'completed')) {
+        confByMap.set(key, c);
+      }
+    }
+
     const results: TmlRecord[] = [];
 
     for (const portaria of portariaList) {
@@ -322,6 +336,15 @@ export class DatabaseStorage implements IStorage {
         ? Math.max(0, portariaMin - effectiveEnd)
         : 0;
 
+      // Tempo de Conferência (da tabela conferences: endTime - startTime)
+      const conf = confByMap.get(portaria.mapa.trim().toUpperCase());
+      let conferenceMin = 0;
+      if (conf?.startTime && conf?.endTime) {
+        const diffMs = new Date(conf.endTime).getTime() - new Date(conf.startTime).getTime();
+        const diffMin = diffMs / 60000;
+        if (diffMin > 0 && diffMin < 600) conferenceMin = Math.round(diffMin * 10) / 10;
+      }
+
       results.push({
         mapa: portaria.mapa,
         motorista: portaria.motorista,
@@ -334,6 +357,7 @@ export class DatabaseStorage implements IStorage {
         matinalMin,
         matinalPatioMin,
         checklistMin,
+        conferenceMin,
         patioPortariaMin,
         tmlMin: matinalMin + matinalPatioMin + checklistMin + patioPortariaMin,
       });

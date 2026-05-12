@@ -37,11 +37,12 @@ const COLORS = {
 };
 
 const METRIC_COLORS = [
-  { bg: "bg-blue-50",    border: "border-blue-400",    text: "text-blue-700",    sub: "text-blue-400",   label: "TML Total",        key: "tmlMin" as const },
-  { bg: "bg-pink-50",    border: "border-pink-400",    text: "text-pink-700",    sub: "text-pink-400",   label: "Matinal",          key: "matinalMin" as const },
-  { bg: "bg-amber-50",   border: "border-amber-400",   text: "text-amber-700",   sub: "text-amber-400",  label: "Matinal → Pátio",  key: "matinalPatioMin" as const },
-  { bg: "bg-emerald-50", border: "border-emerald-400", text: "text-emerald-700", sub: "text-emerald-400",label: "Checklist",         key: "checklistMin" as const },
-  { bg: "bg-violet-50",  border: "border-violet-400",  text: "text-violet-700",  sub: "text-violet-400", label: "Pátio → Portaria", key: "patioPortariaMin" as const },
+  { bg: "bg-blue-50",    border: "border-blue-400",    text: "text-blue-700",    sub: "text-blue-400",   label: "TML Total",            key: "tmlMin" as const },
+  { bg: "bg-pink-50",    border: "border-pink-400",    text: "text-pink-700",    sub: "text-pink-400",   label: "Matinal",              key: "matinalMin" as const },
+  { bg: "bg-amber-50",   border: "border-amber-400",   text: "text-amber-700",   sub: "text-amber-400",  label: "Matinal → Pátio",      key: "matinalPatioMin" as const },
+  { bg: "bg-emerald-50", border: "border-emerald-400", text: "text-emerald-700", sub: "text-emerald-400",label: "Checklist",             key: "checklistMin" as const },
+  { bg: "bg-sky-50",     border: "border-sky-400",     text: "text-sky-700",     sub: "text-sky-400",    label: "Tempo de Conferência", key: "conferenceMin" as const },
+  { bg: "bg-violet-50",  border: "border-violet-400",  text: "text-violet-700",  sub: "text-violet-400", label: "Pátio → Portaria",     key: "patioPortariaMin" as const },
 ];
 
 export default function AdminTml() {
@@ -120,7 +121,7 @@ export default function AdminTml() {
         </div>
 
         {/* Metric cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           {METRIC_COLORS.map(card => (
             <div key={card.key} className={`${card.bg} border-2 ${card.border} rounded-xl p-4 flex flex-col gap-1`} data-testid={`tml-card-${card.key}`}>
               <span className={`text-xs font-medium uppercase tracking-wide ${card.sub}`}>{card.label}</span>
@@ -232,6 +233,7 @@ export default function AdminTml() {
                   <th className="px-4 py-3 text-right">Matinal</th>
                   <th className="px-4 py-3 text-right">Mat→Pát</th>
                   <th className="px-4 py-3 text-right">Checklist</th>
+                  <th className="px-4 py-3 text-right">Conferência</th>
                   <th className="px-4 py-3 text-right">Pát→Port</th>
                   <th className="px-4 py-3 text-right font-bold text-gray-700">TML</th>
                 </tr>
@@ -253,6 +255,7 @@ export default function AdminTml() {
                       <td className="px-4 py-3 text-right font-mono text-blue-600">{minToHMS(r.matinalMin)}</td>
                       <td className="px-4 py-3 text-right font-mono text-amber-600">{minToHMS(r.matinalPatioMin)}</td>
                       <td className="px-4 py-3 text-right font-mono text-emerald-600">{minToHMS(r.checklistMin)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-sky-600">{r.conferenceMin > 0 ? minToHMS(r.conferenceMin) : "—"}</td>
                       <td className="px-4 py-3 text-right font-mono text-violet-600">{minToHMS(r.patioPortariaMin)}</td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">{minToHMS(r.tmlMin)}</td>
                     </tr>
