@@ -40723,17 +40723,19 @@ __export(schema_exports, {
   insertConferenceSchema: () => insertConferenceSchema,
   insertDriverBaseSchema: () => insertDriverBaseSchema,
   insertGinfoChecklistSchema: () => insertGinfoChecklistSchema,
+  insertKpiResultSchema: () => insertKpiResultSchema,
   insertMatinalSchema: () => insertMatinalSchema,
   insertPromaxDataSchema: () => insertPromaxDataSchema,
   insertUploadMetaSchema: () => insertUploadMetaSchema,
   insertWmsItemSchema: () => insertWmsItemSchema,
+  kpiResults: () => kpiResults,
   matinals: () => matinals,
   promaxData: () => promaxData,
   updateWmsItemSchema: () => updateWmsItemSchema,
   uploadMeta: () => uploadMeta,
   wmsItems: () => wmsItems
 });
-var conferences, matinals, wmsItems, promaxData, driverBase, ginfoChecklist, uploadMeta, insertUploadMetaSchema, insertConferenceSchema, insertWmsItemSchema, insertPromaxDataSchema, insertDriverBaseSchema, insertGinfoChecklistSchema, insertMatinalSchema, updateWmsItemSchema;
+var conferences, matinals, wmsItems, promaxData, driverBase, ginfoChecklist, kpiResults, insertKpiResultSchema, uploadMeta, insertUploadMetaSchema, insertConferenceSchema, insertWmsItemSchema, insertPromaxDataSchema, insertDriverBaseSchema, insertGinfoChecklistSchema, insertMatinalSchema, updateWmsItemSchema;
 var init_schema2 = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -40828,6 +40830,14 @@ var init_schema2 = __esm({
       hrFinal: text("hr_final"),
       importedAt: timestamp("imported_at").defaultNow()
     });
+    kpiResults = pgTable("kpi_results", {
+      id: serial("id").primaryKey(),
+      cpf: text("cpf").notNull(),
+      mensagem: text("mensagem").notNull(),
+      nome: text("nome"),
+      importedAt: timestamp("imported_at").defaultNow()
+    });
+    insertKpiResultSchema = createInsertSchema(kpiResults).omit({ id: true, importedAt: true });
     uploadMeta = pgTable("upload_meta", {
       id: serial("id").primaryKey(),
       type: text("type").notNull(),
@@ -41333,6 +41343,17 @@ var DatabaseStorage = class {
       partialCountPercentage: 0
     };
   }
+  async bulkInsertKpiResults(items) {
+    await db.execute(sql`TRUNCATE TABLE kpi_results RESTART IDENTITY CASCADE`);
+    if (items.length === 0) return;
+    for (const item of items) {
+      await db.insert(kpiResults).values(item);
+    }
+  }
+  async getKpiResultByCpf(cpf) {
+    const rows = await db.select().from(kpiResults).where(eq(kpiResults.cpf, cpf)).limit(1);
+    return rows[0];
+  }
 };
 var storage = new DatabaseStorage();
 
@@ -41774,6 +41795,28 @@ async function registerRoutes(httpServer2, app2) {
     } catch (err) {
       console.error("Erro no upload WMS:", err);
       res.status(500).json({ message: "Upload failed" });
+    }
+  });
+  app2.post("/api/kpi/upload", async (req, res) => {
+    try {
+      const { items, fileName } = req.body;
+      if (!items || !Array.isArray(items)) return res.status(400).json({ message: "Nenhum item enviado" });
+      await storage.bulkInsertKpiResults(items);
+      await storage.saveUploadMeta("KPI", fileName || "desconhecido", items.length);
+      res.status(201).json({ success: true });
+    } catch (err) {
+      console.error("Erro no upload KPI:", err);
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+  app2.get("/api/kpi/:cpf", async (req, res) => {
+    try {
+      const cpf = req.params.cpf.replace(/\D/g, "").trim();
+      const result = await storage.getKpiResultByCpf(cpf);
+      if (!result) return res.status(404).json({ message: "CPF n\xE3o encontrado." });
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao buscar KPI." });
     }
   });
   app2.delete("/api/conferences/:id", async (req, res) => {

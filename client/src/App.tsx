@@ -14,6 +14,7 @@ import NotFound from "@/pages/not-found";
 import DriverLogin from "@/pages/driver/DriverLogin";
 import ConferenceBays from "@/pages/driver/ConferenceBays";
 import BayItemsView from "@/pages/driver/BayItemsView";
+import DriverKpi from "@/pages/driver/DriverKpi";
 
 // Roteiro do Admin (Gestão)
 import Dashboard from "@/pages/admin/Dashboard";
@@ -36,6 +37,7 @@ function Router() {
 
       {/* Fluxo do Motorista */}
       <Route path="/driver/login" component={DriverLogin} />
+      <Route path="/driver/kpi" component={DriverKpi} />
       <Route path="/driver/bays/:mapNumber" component={ConferenceBays} />
       <Route path="/driver/conference/:mapNumber/:bayNumber" component={BayItemsView} />
 

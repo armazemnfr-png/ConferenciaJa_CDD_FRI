@@ -95,6 +95,18 @@ export const ginfoChecklist = pgTable("ginfo_checklist", {
   importedAt: timestamp("imported_at").defaultNow(),
 });
 
+export const kpiResults = pgTable("kpi_results", {
+  id: serial("id").primaryKey(),
+  cpf: text("cpf").notNull(),
+  mensagem: text("mensagem").notNull(),
+  nome: text("nome"),
+  importedAt: timestamp("imported_at").defaultNow(),
+});
+
+export const insertKpiResultSchema = createInsertSchema(kpiResults).omit({ id: true, importedAt: true });
+export type KpiResult = typeof kpiResults.$inferSelect;
+export type InsertKpiResult = z.infer<typeof insertKpiResultSchema>;
+
 export const uploadMeta = pgTable("upload_meta", {
   id: serial("id").primaryKey(),
   type: text("type").notNull(),

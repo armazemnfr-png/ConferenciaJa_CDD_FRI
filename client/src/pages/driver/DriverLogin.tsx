@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Truck, ArrowRight, Loader2, MapPin, UserSquare2 } from "lucide-react";
+import { Truck, ArrowRight, Loader2, MapPin, UserSquare2, BarChart2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function DriverLogin() {
@@ -132,6 +132,16 @@ export default function DriverLogin() {
                 <ArrowRight className="w-5 h-5" />
               </>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setLocation("/driver/kpi")}
+            data-testid="button-ver-kpi"
+            className="w-full flex items-center justify-center gap-2 border-2 border-[#0056b3] text-[#0056b3] py-3 rounded-xl font-bold text-base hover:bg-[#0056b3]/5 transition-all"
+          >
+            <BarChart2 className="w-5 h-5" />
+            Ver resultados KPIs
           </button>
 
           <div className="text-center">

@@ -376,6 +376,30 @@ export async function registerRoutes(
     }
   });
 
+  app.post('/api/kpi/upload', async (req, res) => {
+    try {
+      const { items, fileName } = req.body;
+      if (!items || !Array.isArray(items)) return res.status(400).json({ message: "Nenhum item enviado" });
+      await storage.bulkInsertKpiResults(items);
+      await storage.saveUploadMeta('KPI', fileName || 'desconhecido', items.length);
+      res.status(201).json({ success: true });
+    } catch (err) {
+      console.error("Erro no upload KPI:", err);
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  app.get('/api/kpi/:cpf', async (req, res) => {
+    try {
+      const cpf = req.params.cpf.replace(/\D/g, "").trim();
+      const result = await storage.getKpiResultByCpf(cpf);
+      if (!result) return res.status(404).json({ message: "CPF não encontrado." });
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao buscar KPI." });
+    }
+  });
+
   app.delete("/api/conferences/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     try {

@@ -7,6 +7,7 @@ import {
   matinals,
   ginfoChecklist,
   uploadMeta,
+  kpiResults,
   type Conference,
   type WmsItem,
   type PromaxData,
@@ -20,6 +21,8 @@ import {
   type InsertMatinal,
   type UpdateConferenceRequest,
   type UploadMeta,
+  type KpiResult,
+  type InsertKpiResult,
   type UpdateWmsItemRequest,
   type DashboardMetrics,
   type TmlRecord
@@ -98,6 +101,8 @@ export interface IStorage {
   deleteMatinal(id: number): Promise<void>;
   saveUploadMeta(type: string, fileName: string, recordCount: number): Promise<void>;
   getUploadMeta(): Promise<UploadMeta[]>;
+  bulkInsertKpiResults(items: InsertKpiResult[]): Promise<void>;
+  getKpiResultByCpf(cpf: string): Promise<KpiResult | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -629,6 +634,19 @@ export class DatabaseStorage implements IStorage {
       damagePercentage: Number(((totalDamages / denominator) * 100).toFixed(1)),
       partialCountPercentage: 0
     };
+  }
+
+  async bulkInsertKpiResults(items: InsertKpiResult[]): Promise<void> {
+    await db.execute(sql`TRUNCATE TABLE kpi_results RESTART IDENTITY CASCADE`);
+    if (items.length === 0) return;
+    for (const item of items) {
+      await db.insert(kpiResults).values(item);
+    }
+  }
+
+  async getKpiResultByCpf(cpf: string): Promise<KpiResult | undefined> {
+    const rows = await db.select().from(kpiResults).where(eq(kpiResults.cpf, cpf)).limit(1);
+    return rows[0];
   }
 }
 

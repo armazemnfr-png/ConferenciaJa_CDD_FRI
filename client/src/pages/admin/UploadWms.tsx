@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
-import { Upload, CheckCircle, AlertCircle, Package, Truck, Users, Loader2, ArrowLeft, ClipboardCheck, FileText, Clock } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, Package, Truck, Users, Loader2, ArrowLeft, ClipboardCheck, FileText, Clock, BarChart2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-type UploadType = 'WMS' | 'PW' | 'MOT' | 'GINFO';
+type UploadType = 'WMS' | 'PW' | 'MOT' | 'GINFO' | 'KPI';
 
 interface UploadMeta {
   id: number;
@@ -18,7 +18,8 @@ const configs: Record<UploadType, { title: string; icon: React.ReactNode; endpoi
   WMS:   { title: "Relatório WMS (Itens)",               icon: <Package className="w-5 h-5" />,       endpoint: '/api/wms-items/upload' },
   PW:    { title: "Relatório PW 031120 (Promax)",         icon: <Truck className="w-5 h-5" />,          endpoint: '/api/promax/upload' },
   MOT:   { title: "Base Matrícula (Motoristas)",          icon: <Users className="w-5 h-5" />,          endpoint: '/api/motoristas/upload' },
-  GINFO: { title: "Checklist Ginfo (Saída de Veículos)",  icon: <ClipboardCheck className="w-5 h-5" />, endpoint: '/api/ginfo/upload' }
+  GINFO: { title: "Checklist Ginfo (Saída de Veículos)",  icon: <ClipboardCheck className="w-5 h-5" />, endpoint: '/api/ginfo/upload' },
+  KPI:   { title: "Resultados KPIs de Entrega",           icon: <BarChart2 className="w-5 h-5" />,      endpoint: '/api/kpi/upload' },
 };
 
 function formatDate(iso: string) {
@@ -107,6 +108,14 @@ const UploadDados = () => {
               const hrFinal = String(row['HR FINAL'] || row['Hr Final'] || row['HR_FINAL'] || row['HrFinal'] || row['HRFINAL'] || "").trim();
               return { realizadoPor, equipe, mapa, tempo, hrInicio, hrFinal };
             }).filter((item: any) => item.mapa && item.mapa !== "undefined" && item.tempo);
+          }
+          else if (activeTab === 'KPI') {
+            items = results.data.map((row: any) => {
+              const cpf = String(row['CPF'] || row['cpf'] || "").replace(/\D/g, "").trim();
+              const mensagem = String(row['Mensagem'] || row['MENSAGEM'] || row['mensagem'] || "").trim();
+              const nome = String(row['Nome'] || row['NOME'] || row['nome'] || "").trim();
+              return { cpf, mensagem, nome };
+            }).filter((item: any) => item.cpf && item.cpf.length >= 8 && item.mensagem);
           }
 
           if (items.length === 0) {
