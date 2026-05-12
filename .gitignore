@@ -1,3 +1,6 @@
 node_modules
 *.zip
 dist
+attached_assets/*.csv
+attached_assets/*.xlsx
+attached_assets/*.xls
