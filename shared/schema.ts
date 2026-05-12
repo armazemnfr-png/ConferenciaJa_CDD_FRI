@@ -168,6 +168,7 @@ export interface TmlRecord {
   matPatioOverlap: boolean;
   checklistMin: number;
   checklistConferenceMin: number;
+  checklistConferenceSec: number;
   ckConfOverlap: boolean;
   conferenceMin: number;
   patioPortariaMin: number;

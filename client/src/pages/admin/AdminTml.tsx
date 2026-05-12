@@ -24,6 +24,13 @@ function minToHMS(min: number): string {
   return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+function secToDisplay(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
 function parseDisplayDate(dtOper: string): Date | null {
   if (!dtOper) return null;
   const m = dtOper.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -296,8 +303,8 @@ export default function AdminTml() {
                               </TooltipContent>
                             </UITooltip>
                           </TooltipProvider>
-                        ) : r.checklistConferenceMin > 0 ? (
-                          minToHMS(r.checklistConferenceMin)
+                        ) : r.checklistConferenceSec > 0 ? (
+                          secToDisplay(r.checklistConferenceSec)
                         ) : "—"}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-sky-600">{r.conferenceMin > 0 ? minToHMS(r.conferenceMin) : "—"}</td>

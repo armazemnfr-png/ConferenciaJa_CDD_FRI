@@ -338,22 +338,27 @@ export class DatabaseStorage implements IStorage {
       const conf = confByMap.get(portaria.mapa.trim().toUpperCase());
       let conferenceMin = 0;
       let confStartLocalMin = 0;
+      let confStartLocalSec = 0;
       let confEndLocalMin = 0;
       if (conf?.startTime && conf?.endTime) {
         const startDt = new Date(conf.startTime);
         const endDt = new Date(conf.endTime);
         confStartLocalMin = startDt.getUTCHours() * 60 + startDt.getUTCMinutes() - 180;
+        confStartLocalSec = startDt.getUTCHours() * 3600 + startDt.getUTCMinutes() * 60 + startDt.getUTCSeconds() - 180 * 60;
         confEndLocalMin = endDt.getUTCHours() * 60 + endDt.getUTCMinutes() - 180;
         const diffMin = (endDt.getTime() - startDt.getTime()) / 60000;
         if (diffMin > 0 && diffMin < 600) conferenceMin = Math.round(diffMin * 10) / 10;
       }
 
       // Checklist → Conferência (gap entre fim do checklist e início da conferência)
+      // ginfo tem precisão de minuto; conferência tem precisão de segundo
       const effectiveChecklistEnd = checklistEndMin || (checklistStartMin + checklistMin);
-      const ckConfOverlap = confStartLocalMin > 0 && effectiveChecklistEnd > 0 && confStartLocalMin < effectiveChecklistEnd;
-      const checklistConferenceMin = (confStartLocalMin > 0 && effectiveChecklistEnd > 0)
-        ? Math.max(0, confStartLocalMin - effectiveChecklistEnd)
+      const effectiveChecklistEndSec = effectiveChecklistEnd * 60;
+      const ckConfOverlap = confStartLocalSec > 0 && effectiveChecklistEndSec > 0 && confStartLocalSec < effectiveChecklistEndSec;
+      const checklistConferenceSec = (confStartLocalSec > 0 && effectiveChecklistEndSec > 0)
+        ? Math.max(0, confStartLocalSec - effectiveChecklistEndSec)
         : 0;
+      const checklistConferenceMin = checklistConferenceSec / 60;
 
       // Pátio → Portaria (gap entre fim da conferência e saída na portaria)
       // Se não há conferência, usa fim do checklist como base
@@ -376,6 +381,7 @@ export class DatabaseStorage implements IStorage {
         matPatioOverlap,
         checklistMin,
         checklistConferenceMin,
+        checklistConferenceSec,
         ckConfOverlap,
         conferenceMin,
         patioPortariaMin,
