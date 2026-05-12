@@ -4,10 +4,16 @@ import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from "recharts";
-import { Calendar, Filter, MapPin } from "lucide-react";
+import { Calendar, Filter, MapPin, Info, AlertTriangle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { TmlRecord } from "@shared/schema";
 
@@ -255,9 +261,54 @@ export default function AdminTml() {
                       </td>
                       <td className="px-4 py-3 text-gray-500">{r.dtOper}</td>
                       <td className="px-4 py-3 text-right font-mono text-pink-600">{minToHMS(r.matinalMin)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-amber-600">{r.matinalPatioMin > 0 ? minToHMS(r.matinalPatioMin) : "—"}</td>
+                      <td className="px-4 py-3 text-right font-mono text-amber-600">
+                        <TooltipProvider>
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center gap-1 justify-end w-full cursor-default">
+                                {r.matinalPatioMin > 0 ? minToHMS(r.matinalPatioMin) : "—"}
+                                {r.matPatioOverlap && (
+                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                )}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-[220px] text-center text-xs">
+                              {r.matPatioOverlap
+                                ? "Checklist iniciou antes da matinal terminar (sobreposição)"
+                                : r.matinalPatioMin > 0
+                                  ? `${minToHMS(r.matinalPatioMin)} entre fim da matinal e início do checklist`
+                                  : "Sem gap registrado"}
+                            </TooltipContent>
+                          </UITooltip>
+                        </TooltipProvider>
+                      </td>
                       <td className="px-4 py-3 text-right font-mono text-emerald-600">{r.checklistMin > 0 ? minToHMS(r.checklistMin) : "—"}</td>
-                      <td className="px-4 py-3 text-right font-mono text-orange-600">{r.checklistConferenceMin > 0 ? minToHMS(r.checklistConferenceMin) : "—"}</td>
+                      <td className="px-4 py-3 text-right font-mono text-orange-600">
+                        <TooltipProvider>
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center gap-1 justify-end w-full cursor-default">
+                                {r.checklistConferenceMin > 0 ? minToHMS(r.checklistConferenceMin) : "—"}
+                                {r.ckConfOverlap && (
+                                  <AlertTriangle className="h-3.5 w-3.5 text-orange-400 shrink-0" />
+                                )}
+                                {!r.ckConfOverlap && r.checklistConferenceMin > 0 && (
+                                  <Info className="h-3.5 w-3.5 text-orange-300 shrink-0" />
+                                )}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-[240px] text-center text-xs">
+                              {r.ckConfOverlap
+                                ? "Conferência iniciou antes do checklist terminar (processos simultâneos)"
+                                : r.checklistConferenceMin > 0
+                                  ? `${minToHMS(r.checklistConferenceMin)} entre fim do checklist e início da conferência`
+                                  : r.conferenceMin > 0
+                                    ? "Sem gap — checklist e conferência simultâneos"
+                                    : "Sem dados de conferência"}
+                            </TooltipContent>
+                          </UITooltip>
+                        </TooltipProvider>
+                      </td>
                       <td className="px-4 py-3 text-right font-mono text-sky-600">{r.conferenceMin > 0 ? minToHMS(r.conferenceMin) : "—"}</td>
                       <td className="px-4 py-3 text-right font-mono text-violet-600">{r.patioPortariaMin > 0 ? minToHMS(r.patioPortariaMin) : "—"}</td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">{minToHMS(r.tmlMin)}</td>

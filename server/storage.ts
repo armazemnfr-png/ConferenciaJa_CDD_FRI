@@ -326,6 +326,7 @@ export class DatabaseStorage implements IStorage {
         : (ginfo?.tempo ? tmlTimeToMin(ginfo.tempo) : 0);
 
       // Matinal → Pátio
+      const matPatioOverlap = checklistStartMin > 0 && matinalEndMin > 0 && checklistStartMin < matinalEndMin;
       const matinalPatioMin = (checklistStartMin > 0 && matinalEndMin > 0)
         ? Math.max(0, checklistStartMin - matinalEndMin)
         : 0;
@@ -349,6 +350,7 @@ export class DatabaseStorage implements IStorage {
 
       // Checklist → Conferência (gap entre fim do checklist e início da conferência)
       const effectiveChecklistEnd = checklistEndMin || (checklistStartMin + checklistMin);
+      const ckConfOverlap = confStartLocalMin > 0 && effectiveChecklistEnd > 0 && confStartLocalMin < effectiveChecklistEnd;
       const checklistConferenceMin = (confStartLocalMin > 0 && effectiveChecklistEnd > 0)
         ? Math.max(0, confStartLocalMin - effectiveChecklistEnd)
         : 0;
@@ -371,8 +373,10 @@ export class DatabaseStorage implements IStorage {
         hrFinal: ginfo?.hrFinal || "",
         matinalMin,
         matinalPatioMin,
+        matPatioOverlap,
         checklistMin,
         checklistConferenceMin,
+        ckConfOverlap,
         conferenceMin,
         patioPortariaMin,
         tmlMin: matinalMin + matinalPatioMin + checklistMin + checklistConferenceMin + conferenceMin + patioPortariaMin,
