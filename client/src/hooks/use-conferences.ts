@@ -71,11 +71,13 @@ type AdherenceReport = {
   maps: AdherenceMap[];
 };
 
-export function useAdherencia() {
+export function useAdherencia(date?: string) {
   return useQuery<AdherenceReport>({
-    queryKey: ["/api/dashboard/adherencia"],
+    queryKey: ["/api/dashboard/adherencia", date],
     queryFn: async () => {
-      const res = await fetch("/api/dashboard/adherencia", { credentials: "include" });
+      const url = new URL(window.location.origin + "/api/dashboard/adherencia");
+      if (date) url.searchParams.set("date", date);
+      const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Erro ao buscar aderência");
       return res.json();
     },

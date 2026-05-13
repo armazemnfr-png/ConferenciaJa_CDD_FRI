@@ -29,35 +29,23 @@ const STATUS_ICON: Record<string, JSX.Element> = {
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
 export default function AdminAdherencia() {
-  const { data, isLoading } = useAdherencia();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [dateFrom, setDateFrom] = useState(todayStr());
-  const [dateTo, setDateTo] = useState(todayStr());
+  const [selectedDate, setSelectedDate] = useState(todayStr());
 
-  const hasDateFilter = dateFrom !== "" || dateTo !== "";
+  const { data, isLoading } = useAdherencia(selectedDate);
 
   const clearFilters = () => {
     setSearch("");
     setStatusFilter("all");
-    setDateFrom("");
-    setDateTo("");
+    setSelectedDate(todayStr());
   };
 
-  // Filtro de período aplicado a completedAt
-  // Mapas não iniciados/em andamento são sempre incluídos (representam o plano do dia)
+  // O servidor já filtra por data; aqui só aplicamos busca e status
   const dateFiltered = useMemo(() => {
     if (!data) return [];
-    if (!hasDateFilter) return data.maps;
-    return data.maps.filter(m => {
-      if (!m.completedAt) return true; // pendentes: sempre visíveis
-      const d = new Date(m.completedAt);
-      const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      if (dateFrom && day < new Date(dateFrom + "T00:00:00")) return false;
-      if (dateTo && day > new Date(dateTo + "T00:00:00")) return false;
-      return true;
-    });
-  }, [data, dateFrom, dateTo, hasDateFilter]);
+    return data.maps;
+  }, [data]);
 
   // Filtro completo para a tabela
   const filtered = useMemo(() => {
@@ -122,8 +110,8 @@ export default function AdminAdherencia() {
     );
   }
 
-  const pct = hasDateFilter ? adherencePct : data.adherencePercentage;
-  const total = hasDateFilter ? totalFiltered : data.totalMaps;
+  const pct = adherencePct;
+  const total = totalFiltered;
   const pctColor = pct >= 90 ? "text-emerald-600" : pct >= 70 ? "text-yellow-600" : "text-red-600";
   const barColor = pct >= 90 ? "bg-emerald-500" : pct >= 70 ? "bg-yellow-400" : "bg-red-500";
 
@@ -151,45 +139,33 @@ export default function AdminAdherencia() {
           </button>
         </div>
 
-        {/* Filtro de Período */}
+        {/* Filtro de Data */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <div className="flex items-center gap-2 text-sm font-medium text-slate-600 shrink-0">
               <CalendarDays className="w-4 h-4 text-primary" />
-              Período
+              Data
             </div>
-            <div className="flex flex-1 items-center gap-2">
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                data-testid="input-date-from"
-                className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-              <span className="text-slate-400 text-sm shrink-0">até</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                data-testid="input-date-to"
-                className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
-            {(hasDateFilter || search || statusFilter !== "all") && (
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              data-testid="input-date"
+              className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+            {(search || statusFilter !== "all" || selectedDate !== todayStr()) && (
               <button
                 onClick={clearFilters}
                 data-testid="button-clear-filters"
                 className="flex items-center gap-1 px-3 py-2 text-xs text-slate-500 hover:text-red-600 border border-slate-200 hover:border-red-300 rounded-xl transition"
               >
-                <X className="w-3.5 h-3.5" /> Limpar filtros
+                <X className="w-3.5 h-3.5" /> Voltar para hoje
               </button>
             )}
           </div>
-          {hasDateFilter && (
-            <p className="text-xs text-slate-400 mt-2 ml-1">
-              Filtrando por data de conclusão da conferência. Mapas sem data (não conferidos) não aparecem neste modo.
-            </p>
-          )}
+          <p className="text-xs text-slate-400 mt-2 ml-1">
+            Mostrando mapas do WMS atual + conferências de {selectedDate ? new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR") : "hoje"}.
+          </p>
         </div>
 
         {/* Cartões de métricas */}
@@ -216,7 +192,7 @@ export default function AdminAdherencia() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-semibold text-slate-700">
-              Aderência {hasDateFilter ? "no Período" : "Geral"}
+              Aderência do Dia
             </span>
             <span className={`text-3xl font-black ${pctColor}`} data-testid="text-adherence-pct">{pct}%</span>
           </div>
@@ -321,7 +297,7 @@ export default function AdminAdherencia() {
           </div>
 
           <div className="px-4 py-3 border-t border-slate-100 text-xs text-muted-foreground">
-            Exibindo {filtered.length} de {total} mapas{hasDateFilter ? " no período" : ""}
+            Exibindo {filtered.length} de {total} mapas do dia
           </div>
         </div>
       </div>

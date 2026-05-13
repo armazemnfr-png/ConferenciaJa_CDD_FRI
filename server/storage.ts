@@ -88,7 +88,7 @@ export interface IStorage {
   bulkInsertGinfoChecklist(items: InsertGinfoChecklist[]): Promise<void>;
   getGinfoChecklist(): Promise<GinfoChecklist[]>;
   getTmlData(): Promise<TmlRecord[]>;
-  getAdherenceReport(): Promise<{
+  getAdherenceReport(dateStr?: string): Promise<{
     totalMaps: number;
     conferencedMaps: number;
     adherencePercentage: number;
@@ -109,16 +109,28 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  async getAdherenceReport() {
-    // 1. Mapas esperados do WMS atual (plano do dia)
+  async getAdherenceReport(dateStr?: string) {
+    // Determinar o dia de referência (padrão: hoje no horário de Brasília UTC-3)
+    const refDate = dateStr
+      ? new Date(dateStr + "T00:00:00")
+      : (() => { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset() - 180); return new Date(now.toISOString().slice(0, 10) + "T00:00:00"); })();
+    const refDateEnd = new Date(refDate);
+    refDateEnd.setDate(refDateEnd.getDate() + 1);
+
+    // 1. Mapas esperados do WMS atual (sempre refletem o último upload — tabela é truncada a cada upload)
     const wmsRows = await db.selectDistinct({ mapNumber: wmsItems.mapNumber }).from(wmsItems);
     const expectedMaps = new Set(wmsRows.map(r => r.mapNumber.trim()));
 
-    // 2. Todas as conferências históricas (qualquer status)
+    // 2. Conferências APENAS do dia de referência
     const allConfs = await db.select().from(conferences);
+    const todayConfs = allConfs.filter(c => {
+      const ts = c.startTime ?? c.createdAt;
+      if (!ts) return false;
+      return ts >= refDate && ts < refDateEnd;
+    });
     const statusPriority: Record<string, number> = { completed: 3, in_progress: 2, pending: 1 };
     const confByMap = new Map<string, typeof allConfs[0]>();
-    for (const c of allConfs) {
+    for (const c of todayConfs) {
       const key = c.mapNumber.trim();
       const existing = confByMap.get(key);
       if (!existing || (statusPriority[c.status] ?? 0) > (statusPriority[existing.status] ?? 0)) {
@@ -126,8 +138,7 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Adicionar ao conjunto de mapas todas as conferências históricas
-    // (preserva o histórico mesmo após novo upload do WMS)
+    // Adicionar ao conjunto apenas conferências do dia (não históricas de outros dias)
     for (const mapNumber of confByMap.keys()) {
       expectedMaps.add(mapNumber);
     }
