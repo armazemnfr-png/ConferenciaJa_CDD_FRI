@@ -12,9 +12,16 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
 export default function AdminMatinals() {
+  const last7Days = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return d.toISOString().slice(0, 10);
+  };
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+
   const [roomFilter, setRoomFilter] = useState<string>("all");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>(last7Days());
+  const [endDate, setEndDate] = useState<string>(todayStr());
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -56,11 +63,11 @@ export default function AdminMatinals() {
 
   function clearFilters() {
     setRoomFilter("all");
-    setStartDate("");
-    setEndDate("");
+    setStartDate(last7Days());
+    setEndDate(todayStr());
   }
 
-  const hasActiveFilters = roomFilter !== "all" || startDate || endDate;
+  const hasActiveFilters = roomFilter !== "all" || startDate !== last7Days() || endDate !== todayStr();
 
   return (
     <AdminLayout>
@@ -127,7 +134,7 @@ export default function AdminMatinals() {
                   className="h-9 px-3 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-destructive border border-input rounded-md hover:border-destructive transition-colors"
                 >
                   <X className="h-3.5 w-3.5" />
-                  Limpar
+                  Últimos 7 dias
                 </button>
               )}
 
