@@ -21,10 +21,12 @@ const formatFullTime = (minutes: number | undefined) => {
 
 const d0 = new Date();
 const todayStr = `${d0.getFullYear()}-${String(d0.getMonth()+1).padStart(2,'0')}-${String(d0.getDate()).padStart(2,'0')}`;
+const d7 = new Date(); d7.setDate(d7.getDate() - 6);
+const last7Str = `${d7.getFullYear()}-${String(d7.getMonth()+1).padStart(2,'0')}-${String(d7.getDate()).padStart(2,'0')}`;
 
 export default function Dashboard() {
   const [activeFilters, setActiveFilters] = useState({
-    startDate: todayStr,
+    startDate: last7Str,
     endDate: todayStr,
     driverId: "",
     mapNumber: "",

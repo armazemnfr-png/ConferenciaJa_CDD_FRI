@@ -2,10 +2,11 @@ import React, { useState, useEffect } from "react";
 import { Search, Calendar, User, Map as MapIcon, FilterX } from "lucide-react";
 
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const last7Days = () => { const d = new Date(); d.setDate(d.getDate() - 6); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
 export default function DashboardFilters({ onFilter }: { onFilter: (filters: any) => void }) {
   const [filters, setFilters] = useState({
-    startDate: todayStr(),
+    startDate: last7Days(),
     endDate: todayStr(),
     driverId: "",
     mapNumber: "",

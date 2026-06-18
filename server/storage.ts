@@ -677,6 +677,15 @@ export class DatabaseStorage implements IStorage {
     const filteredConferences = await this.getConferences(filters);
     const completed = filteredConferences.filter(c => c.status === "completed");
 
+    // Busca todos os itens WMS de uma vez só (evita N+1 queries)
+    const allItems = await db.select().from(wmsItems);
+    const itemsByMap = new Map<string, typeof allItems>();
+    for (const item of allItems) {
+      const key = item.mapNumber.trim().toUpperCase();
+      if (!itemsByMap.has(key)) itemsByMap.set(key, []);
+      itemsByMap.get(key)!.push(item);
+    }
+
     let totalItems = 0;
     let totalDivergences = 0;
     let totalDamages = 0;
@@ -684,7 +693,7 @@ export class DatabaseStorage implements IStorage {
     let validTimeCount = 0;
 
     for (const conf of completed) {
-      const items = await this.getWmsItemsByMap(conf.mapNumber);
+      const items = itemsByMap.get(conf.mapNumber.trim().toUpperCase()) ?? [];
       totalItems += items.length;
       totalDivergences += items.filter(i => i.isChecked && i.checkedQuantity !== null && i.checkedQuantity !== i.expectedQuantity).length;
       totalDamages += items.filter(i => i.hasDamage).length;
@@ -693,7 +702,6 @@ export class DatabaseStorage implements IStorage {
         const start = new Date(conf.startTime).getTime();
         const end = new Date(conf.endTime).getTime();
         const diff = (end - start) / 60000;
-
         if (diff > 0.1 && diff < 360) {
           totalMinutes += diff;
           validTimeCount++;
