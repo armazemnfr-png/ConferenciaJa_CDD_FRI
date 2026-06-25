@@ -192,8 +192,9 @@ export class DatabaseStorage implements IStorage {
           const resolvedName = nameByReg.get(normalizeReg(promaxReg)) ?? null;
           if (resolvedName) {
             driverName = resolvedName;
-            if (!driverId) driverId = promaxReg; // mostrar matrícula também
           }
+          // Sempre preencher driverId com matrícula do promax (mesmo sem nome na base)
+          if (!driverId) driverId = promaxReg;
         }
       }
 

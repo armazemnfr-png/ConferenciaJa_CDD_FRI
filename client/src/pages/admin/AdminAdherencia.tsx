@@ -279,7 +279,12 @@ export default function AdminAdherencia() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-slate-700">
-                        {m.driverName ?? <span className="text-slate-400 italic text-xs">Não identificado</span>}
+                        {m.driverName
+                          ? m.driverName
+                          : m.driverId
+                            ? <span className="text-slate-500 font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">Mat. {m.driverId}</span>
+                            : <span className="text-slate-400 italic text-xs">Não identificado</span>
+                        }
                       </td>
                       <td className="px-4 py-3 font-mono text-slate-500 text-xs">
                         {m.driverId ?? "—"}
