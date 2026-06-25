@@ -148,10 +148,14 @@ export class DatabaseStorage implements IStorage {
     const nameByReg = new Map<string, string>();
     allDrivers.forEach(d => nameByReg.set(normalizeReg(d.registration), d.name));
 
-    // 4. Promax para motoristas dos mapas que nunca foram iniciados
-    const allPromax = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista }).from(promaxData);
-    const promaxByMap = new Map<string, string>();
-    allPromax.forEach(p => { if (p.mapa) promaxByMap.set(p.mapa.trim(), p.motorista ?? ""); });
+    // 4. Promax (fase CARREGADO) → matrícula do motorista por mapa
+    const allPromax = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista, fase: promaxData.fase }).from(promaxData);
+    const promaxRegByMap = new Map<string, string>(); // mapa → matrícula
+    allPromax.forEach(p => {
+      if (p.mapa && p.motorista && p.fase?.toUpperCase().trim() === 'CARREGADO') {
+        promaxRegByMap.set(p.mapa.trim(), p.motorista.trim());
+      }
+    });
 
     // 5. Montar relatório
     const maps: {
@@ -173,14 +177,24 @@ export class DatabaseStorage implements IStorage {
         status = 'in_progress';
       }
 
-      const driverId = conf?.driverId ?? null;
+      // Matrícula: da conferência (digitada pelo motorista) ou do Promax PW (do sistema)
+      let driverId = conf?.driverId ?? null;
       let driverName: string | null = null;
+
       if (driverId) {
         driverName = nameByReg.get(normalizeReg(driverId)) ?? null;
       }
+
+      // Fallback: usar matrícula do Promax PW para cruzar com Base Matrícula
       if (!driverName) {
-        const promaxName = promaxByMap.get(mapNumber);
-        if (promaxName) driverName = promaxName;
+        const promaxReg = promaxRegByMap.get(mapNumber);
+        if (promaxReg) {
+          const resolvedName = nameByReg.get(normalizeReg(promaxReg)) ?? null;
+          if (resolvedName) {
+            driverName = resolvedName;
+            if (!driverId) driverId = promaxReg; // mostrar matrícula também
+          }
+        }
       }
 
       maps.push({
