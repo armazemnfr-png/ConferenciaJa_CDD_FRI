@@ -77,10 +77,14 @@ export interface IStorage {
   bulkInsertWmsItems(items: InsertWmsItem[]): Promise<void>;
   bulkInsertPromaxData(items: any[]): Promise<void>;
   getPromaxByDriver(registration: string): Promise<PromaxData | undefined>;
+  getAllPromaxData(): Promise<PromaxData[]>;
   getPortariaData(): Promise<{ mapa: string; motorista: string; nome: string; sala: string; dtOper: string; hrOper: string; tipoMapa: string }[]>;
   bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void>;
   getDriverByRegistration(registration: string): Promise<DriverBase | undefined>;
   getAllDrivers(): Promise<DriverBase[]>;
+  getAllWmsItems(): Promise<WmsItem[]>;
+  getAllGinfoRows(): Promise<GinfoChecklist[]>;
+  getAllKpiResults(): Promise<KpiResult[]>;
   getDashboardMetrics(filters?: any): Promise<DashboardMetrics>;
   getMetricsByRoom(filters?: { startDate?: string; endDate?: string }): Promise<{ room: string; avgMinutes: number; count: number }[]>;
   getDriversWithoutRoom(filters?: { startDate?: string; endDate?: string }): Promise<{ driverId: string; maps: string[]; count: number }[]>;
@@ -611,6 +615,22 @@ export class DatabaseStorage implements IStorage {
 
   async getAllDrivers(): Promise<DriverBase[]> {
     return await db.select().from(driverBase).orderBy(driverBase.name);
+  }
+
+  async getAllWmsItems(): Promise<WmsItem[]> {
+    return await db.select().from(wmsItems).orderBy(wmsItems.mapNumber, wmsItems.bayNumber);
+  }
+
+  async getAllPromaxData(): Promise<PromaxData[]> {
+    return await db.select().from(promaxData).orderBy(promaxData.mapa);
+  }
+
+  async getAllGinfoRows(): Promise<GinfoChecklist[]> {
+    return await db.select().from(ginfoChecklist).orderBy(ginfoChecklist.mapa);
+  }
+
+  async getAllKpiResults(): Promise<KpiResult[]> {
+    return await db.select().from(kpiResults).orderBy(kpiResults.nome);
   }
 
   async bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void> {

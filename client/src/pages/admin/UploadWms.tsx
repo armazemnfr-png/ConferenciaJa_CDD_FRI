@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
-import { Upload, CheckCircle, AlertCircle, Package, Truck, Users, Loader2, ArrowLeft, ClipboardCheck, FileText, Clock, BarChart2 } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, Package, Truck, Users, Loader2, ArrowLeft, ClipboardCheck, FileText, Clock, BarChart2, Download } from 'lucide-react';
 import { Link } from 'wouter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -14,12 +14,12 @@ interface UploadMeta {
   importedAt: string;
 }
 
-const configs: Record<UploadType, { title: string; icon: React.ReactNode; endpoint: string }> = {
-  WMS:   { title: "Relatório WMS (Itens)",               icon: <Package className="w-5 h-5" />,       endpoint: '/api/wms-items/upload' },
-  PW:    { title: "Relatório PW 031120 (Promax)",         icon: <Truck className="w-5 h-5" />,          endpoint: '/api/promax/upload' },
-  MOT:   { title: "Base Matrícula (Motoristas)",          icon: <Users className="w-5 h-5" />,          endpoint: '/api/motoristas/upload' },
-  GINFO: { title: "Checklist Ginfo (Saída de Veículos)",  icon: <ClipboardCheck className="w-5 h-5" />, endpoint: '/api/ginfo/upload' },
-  KPI:   { title: "Resultados KPIs de Entrega",           icon: <BarChart2 className="w-5 h-5" />,      endpoint: '/api/kpi/upload' },
+const configs: Record<UploadType, { title: string; icon: React.ReactNode; endpoint: string; downloadEndpoint: string; downloadName: string }> = {
+  WMS:   { title: "Relatório WMS (Itens)",               icon: <Package className="w-5 h-5" />,       endpoint: '/api/wms-items/upload',  downloadEndpoint: '/api/download/wms',  downloadName: 'wms_export.csv' },
+  PW:    { title: "Relatório PW 031120 (Promax)",         icon: <Truck className="w-5 h-5" />,          endpoint: '/api/promax/upload',      downloadEndpoint: '/api/download/pw',   downloadName: 'promax_export.csv' },
+  MOT:   { title: "Base Matrícula (Motoristas)",          icon: <Users className="w-5 h-5" />,          endpoint: '/api/motoristas/upload',  downloadEndpoint: '/api/download/mot',  downloadName: 'motoristas_export.csv' },
+  GINFO: { title: "Checklist Ginfo (Saída de Veículos)",  icon: <ClipboardCheck className="w-5 h-5" />, endpoint: '/api/ginfo/upload',       downloadEndpoint: '/api/download/ginfo',downloadName: 'ginfo_export.csv' },
+  KPI:   { title: "Resultados KPIs de Entrega",           icon: <BarChart2 className="w-5 h-5" />,      endpoint: '/api/kpi/upload',         downloadEndpoint: '/api/download/kpi',  downloadName: 'kpi_export.csv' },
 };
 
 function formatDate(iso: string) {
@@ -30,8 +30,30 @@ function formatDate(iso: string) {
 const UploadDados = () => {
   const [activeTab, setActiveTab] = useState<UploadType>('WMS');
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
   const queryClient = useQueryClient();
+
+  const handleDownload = async (type: UploadType) => {
+    setDownloading(true);
+    try {
+      const res = await fetch(configs[type].downloadEndpoint);
+      if (!res.ok) throw new Error('Erro ao baixar');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = configs[type].downloadName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      setStatus({ type: 'error', msg: 'Erro ao baixar o relatório.' });
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const { data: metaList = [] } = useQuery<UploadMeta[]>({
     queryKey: ['/api/upload-meta'],
@@ -201,13 +223,26 @@ const UploadDados = () => {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border p-8">
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            {configs[activeTab].icon} {configs[activeTab].title}
-          </h2>
-          <p className="text-gray-500 mt-1">
-            {loading ? "Aguarde, limpando base de dados e importando..." : "Selecione o arquivo CSV para atualizar a base."}
-          </p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              {configs[activeTab].icon} {configs[activeTab].title}
+            </h2>
+            <p className="text-gray-500 mt-1">
+              {loading ? "Aguarde, limpando base de dados e importando..." : "Selecione o arquivo CSV para atualizar a base."}
+            </p>
+          </div>
+          {metaByType[activeTab] && (
+            <button
+              data-testid="button-download-report"
+              onClick={() => handleDownload(activeTab)}
+              disabled={downloading}
+              className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg border border-green-600 text-green-700 bg-green-50 hover:bg-green-100 transition-colors text-sm font-medium disabled:opacity-50"
+            >
+              {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {downloading ? 'Baixando...' : 'Baixar CSV'}
+            </button>
+          )}
         </div>
 
         <div className={`border-2 border-dashed rounded-xl p-16 text-center transition-colors ${loading ? 'bg-gray-50 border-gray-300' : 'hover:border-blue-400 border-gray-200'}`}>

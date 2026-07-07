@@ -401,6 +401,108 @@ export async function registerRoutes(
     }
   });
 
+  // --- DOWNLOAD DE RELATÓRIOS ---
+  function toCSV(rows: Record<string, any>[], columns: { key: string; header: string }[]): string {
+    const header = columns.map(c => `"${c.header}"`).join(';');
+    const lines = rows.map(row =>
+      columns.map(c => {
+        const val = row[c.key] ?? '';
+        return `"${String(val).replace(/"/g, '""')}"`;
+      }).join(';')
+    );
+    return [header, ...lines].join('\r\n');
+  }
+
+  app.get('/api/download/wms', async (_req, res) => {
+    try {
+      const rows = await storage.getAllWmsItems();
+      const csv = toCSV(rows, [
+        { key: 'warehouseCode', header: 'Código do Armazém' },
+        { key: 'mapNumber',     header: 'Mapas' },
+        { key: 'bayNumber',     header: 'Palete' },
+        { key: 'box',           header: 'Caixa' },
+        { key: 'sequence',      header: 'Sequência' },
+        { key: 'status',        header: 'Status' },
+        { key: 'sku',           header: 'Código do item' },
+        { key: 'description',   header: 'Item' },
+        { key: 'expectedQuantity', header: 'Qtd' },
+        { key: 'subtype',       header: 'Subtipo' },
+        { key: 'category',      header: 'Categoria' },
+        { key: 'unitOfMeasure', header: 'Unidade' },
+        { key: 'origin',        header: 'Origem' },
+        { key: 'deliveryDate',  header: 'Data de entrega' },
+        { key: 'plate',         header: 'Placa' },
+      ]);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="wms_export.csv"');
+      res.send('\uFEFF' + csv);
+    } catch (err) { res.status(500).json({ message: 'Erro ao exportar WMS' }); }
+  });
+
+  app.get('/api/download/pw', async (_req, res) => {
+    try {
+      const rows = await storage.getAllPromaxData();
+      const csv = toCSV(rows, [
+        { key: 'mapa',      header: 'Mapa' },
+        { key: 'fase',      header: 'Fase' },
+        { key: 'motorista', header: 'Motorista' },
+        { key: 'veiculo',   header: 'Veiculo' },
+        { key: 'placa',     header: 'Placa' },
+        { key: 'dtOper',    header: 'DtOper' },
+        { key: 'hrOper',    header: 'HrOper' },
+        { key: 'tipoMapa',  header: 'TipoMapa' },
+      ]);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="promax_export.csv"');
+      res.send('\uFEFF' + csv);
+    } catch (err) { res.status(500).json({ message: 'Erro ao exportar PW' }); }
+  });
+
+  app.get('/api/download/mot', async (_req, res) => {
+    try {
+      const rows = await storage.getAllDrivers();
+      const csv = toCSV(rows, [
+        { key: 'registration', header: 'Matrícula' },
+        { key: 'name',         header: 'Colaborador' },
+        { key: 'room',         header: 'Sala' },
+      ]);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="motoristas_export.csv"');
+      res.send('\uFEFF' + csv);
+    } catch (err) { res.status(500).json({ message: 'Erro ao exportar Motoristas' }); }
+  });
+
+  app.get('/api/download/ginfo', async (_req, res) => {
+    try {
+      const rows = await storage.getAllGinfoRows();
+      const csv = toCSV(rows, [
+        { key: 'realizadoPor', header: 'REALIZADO POR' },
+        { key: 'equipe',       header: 'EQUIPE' },
+        { key: 'mapa',         header: 'MAPA' },
+        { key: 'tempo',        header: 'TEMPO' },
+        { key: 'hrInicio',     header: 'HR INICIO' },
+        { key: 'hrFinal',      header: 'HR FINAL' },
+      ]);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="ginfo_export.csv"');
+      res.send('\uFEFF' + csv);
+    } catch (err) { res.status(500).json({ message: 'Erro ao exportar GINFO' }); }
+  });
+
+  app.get('/api/download/kpi', async (_req, res) => {
+    try {
+      const rows = await storage.getAllKpiResults();
+      const csv = toCSV(rows, [
+        { key: 'cpf',      header: 'CPF' },
+        { key: 'nome',     header: 'Nome' },
+        { key: 'mensagem', header: 'Mensagem' },
+      ]);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="kpi_export.csv"');
+      res.send('\uFEFF' + csv);
+    } catch (err) { res.status(500).json({ message: 'Erro ao exportar KPI' }); }
+  });
+
   app.delete("/api/conferences/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     try {
