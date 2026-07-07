@@ -71,10 +71,15 @@ const UploadDados = () => {
     setLoading(true);
     setStatus(null);
 
+    const headerCounts: Record<string, number> = {};
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      transformHeader: (h) => h.trim(),
+      transformHeader: (h: string) => {
+        const key = h.trim();
+        headerCounts[key] = (headerCounts[key] || 0) + 1;
+        return headerCounts[key] > 1 ? `${key}_${headerCounts[key]}` : key;
+      },
       complete: async (results) => {
         try {
           let items: any[] = [];
@@ -121,13 +126,25 @@ const UploadDados = () => {
             })).filter((item: any) => item.registration && item.registration !== "");
           }
           else if (activeTab === 'GINFO') {
+            // Extrai só a hora de "DD/MM/YYYY HH:MM" ou "DD/MM/YYYY HH:MM:SS"
+            const extractTime = (v: string): string => {
+              const m = v.match(/(\d{1,2}:\d{2}(?::\d{2})?)$/);
+              return m ? m[1] : v;
+            };
             items = results.data.map((row: any) => {
               const realizadoPor = String(row['REALIZADO POR'] || row['Realizado Por'] || row['realizado_por'] || "").trim();
-              const equipe = String(row['EQUIPE'] || row['Equipe'] || row['equipe'] || "").trim();
+              // Arquivo tem coluna EQUIPE duplicada (equipe motorista, equipe 2º motorista)
+              // PapaParse renomeia duplicatas como EQUIPE_2, EQUIPE_3 — pega o primeiro não-vazio
+              const equipe = String(
+                row['EQUIPE'] || row['EQUIPE_2'] || row['EQUIPE_3'] ||
+                row['Equipe'] || row['equipe'] || ""
+              ).trim();
               const mapa = String(row['MAPA'] || row['Mapa'] || row['mapa'] || "").trim();
               const tempo = String(row['TEMPO'] || row['Tempo'] || row['tempo'] || "").trim();
-              const hrInicio = String(row['HR INICIO'] || row['Hr Inicio'] || row['HR_INICIO'] || row['HrInicio'] || row['HRINICIO'] || "").trim();
-              const hrFinal = String(row['HR FINAL'] || row['Hr Final'] || row['HR_FINAL'] || row['HrFinal'] || row['HRFINAL'] || "").trim();
+              const hrInicioRaw = String(row['HR INICIO'] || row['Hr Inicio'] || row['HR_INICIO'] || row['HrInicio'] || row['HRINICIO'] || "").trim();
+              const hrFinalRaw = String(row['HR FINAL'] || row['Hr Final'] || row['HR_FINAL'] || row['HrFinal'] || row['HRFINAL'] || "").trim();
+              const hrInicio = extractTime(hrInicioRaw);
+              const hrFinal = extractTime(hrFinalRaw);
               return { realizadoPor, equipe, mapa, tempo, hrInicio, hrFinal };
             }).filter((item: any) => item.mapa && item.mapa !== "undefined" && item.tempo);
           }
