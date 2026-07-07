@@ -145,8 +145,11 @@ const UploadDados = () => {
               const hrFinalRaw = String(row['HR FINAL'] || row['Hr Final'] || row['HR_FINAL'] || row['HrFinal'] || row['HRFINAL'] || "").trim();
               const hrInicio = extractTime(hrInicioRaw);
               const hrFinal = extractTime(hrFinalRaw);
-              return { realizadoPor, equipe, mapa, tempo, hrInicio, hrFinal };
-            }).filter((item: any) => item.mapa && item.mapa !== "undefined" && item.tempo);
+              // Campos extras para cruzamento server-side quando MAPA vier vazio
+              const matricula = String(row['MATRICULA'] || row['Matricula'] || row['matricula'] || "").trim();
+              const data = String(row['DATA'] || row['Data'] || row['data'] || "").trim();
+              return { realizadoPor, equipe, mapa, tempo, hrInicio, hrFinal, matricula, data };
+            }).filter((item: any) => (item.mapa || item.matricula) && item.tempo);
           }
           else if (activeTab === 'KPI') {
             items = results.data.map((row: any) => {

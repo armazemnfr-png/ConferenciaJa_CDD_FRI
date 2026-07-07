@@ -105,9 +105,35 @@ export async function registerRoutes(
       if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: "Nenhum item enviado." });
       }
-      await storage.bulkInsertGinfoChecklist(items);
-      await storage.saveUploadMeta('GINFO', fileName || 'desconhecido', items.length);
-      res.json({ success: true, count: items.length });
+
+      // Se algum item está sem mapa mas tem matrícula, buscamos o mapa no promax
+      const needsLookup = items.some((item: any) => !item.mapa && item.matricula);
+      let mapaLookup: Map<string, string> | null = null;
+      if (needsLookup) {
+        mapaLookup = await storage.getPromaxMapaLookup();
+      }
+
+      const normalizeReg = (s: string) => { const n = parseInt((s || "").trim(), 10); return isNaN(n) ? (s || "").trim() : String(n); };
+
+      const enriched = items
+        .map((item: any) => {
+          if (!item.mapa && item.matricula && mapaLookup) {
+            const reg = normalizeReg(item.matricula);
+            // Tenta match preciso por mat.+data, depois só mat.
+            const found = mapaLookup.get(`${reg}|${(item.data || "").trim()}`) || mapaLookup.get(reg);
+            if (found) return { ...item, mapa: found };
+          }
+          return item;
+        })
+        .filter((item: any) => item.mapa && item.mapa !== "undefined");
+
+      if (enriched.length === 0) {
+        return res.status(400).json({ message: "Nenhum item com mapa encontrado. Verifique se o arquivo PW (Promax) foi importado antes do GINFO." });
+      }
+
+      await storage.bulkInsertGinfoChecklist(enriched);
+      await storage.saveUploadMeta('GINFO', fileName || 'desconhecido', enriched.length);
+      res.json({ success: true, count: enriched.length });
     } catch (err) {
       console.error("Erro ao importar Ginfo:", err);
       res.status(500).json({ message: "Erro ao importar checklist Ginfo." });

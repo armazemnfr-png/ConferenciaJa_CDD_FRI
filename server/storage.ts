@@ -110,6 +110,7 @@ export interface IStorage {
   getUploadMeta(): Promise<UploadMeta[]>;
   bulkInsertKpiResults(items: InsertKpiResult[]): Promise<void>;
   getKpiResultByCpf(cpf: string): Promise<KpiResult | undefined>;
+  getPromaxMapaLookup(): Promise<Map<string, string>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -767,6 +768,22 @@ export class DatabaseStorage implements IStorage {
   async getKpiResultByCpf(cpf: string): Promise<KpiResult | undefined> {
     const rows = await db.select().from(kpiResults).where(eq(kpiResults.cpf, cpf)).limit(1);
     return rows[0];
+  }
+
+  async getPromaxMapaLookup(): Promise<Map<string, string>> {
+    const rows = await db
+      .select({ mapa: promaxData.mapa, motorista: promaxData.motorista, dtOper: promaxData.dtOper })
+      .from(promaxData)
+      .where(eq(promaxData.fase, 'CARREGADO'));
+    const lookup = new Map<string, string>();
+    rows.forEach(r => {
+      if (!r.mapa || !r.motorista) return;
+      const reg = normalizeReg(r.motorista);
+      // Indexa por matrícula simples (último mapa vence para mesma mat.) e por mat.|data para match preciso
+      lookup.set(reg, r.mapa);
+      if (r.dtOper) lookup.set(`${reg}|${r.dtOper.trim()}`, r.mapa);
+    });
+    return lookup;
   }
 }
 
