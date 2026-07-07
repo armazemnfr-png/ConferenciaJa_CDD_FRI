@@ -71,15 +71,10 @@ const UploadDados = () => {
     setLoading(true);
     setStatus(null);
 
-    const headerCounts: Record<string, number> = {};
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      transformHeader: (h: string) => {
-        const key = h.trim();
-        headerCounts[key] = (headerCounts[key] || 0) + 1;
-        return headerCounts[key] > 1 ? `${key}_${headerCounts[key]}` : key;
-      },
+      transformHeader: (h: string) => h.replace(/^\uFEFF/, '').trim(),
       complete: async (results) => {
         try {
           let items: any[] = [];
