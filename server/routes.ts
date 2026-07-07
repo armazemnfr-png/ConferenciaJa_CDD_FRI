@@ -3,6 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import { isAuthenticated } from "./replit_integrations/auth";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -413,7 +414,7 @@ export async function registerRoutes(
     return [header, ...lines].join('\r\n');
   }
 
-  app.get('/api/download/wms', async (_req, res) => {
+  app.get('/api/download/wms', isAuthenticated, async (_req, res) => {
     try {
       const rows = await storage.getAllWmsItems();
       const csv = toCSV(rows, [
@@ -439,7 +440,7 @@ export async function registerRoutes(
     } catch (err) { res.status(500).json({ message: 'Erro ao exportar WMS' }); }
   });
 
-  app.get('/api/download/pw', async (_req, res) => {
+  app.get('/api/download/pw', isAuthenticated, async (_req, res) => {
     try {
       const rows = await storage.getAllPromaxData();
       const csv = toCSV(rows, [
@@ -458,7 +459,7 @@ export async function registerRoutes(
     } catch (err) { res.status(500).json({ message: 'Erro ao exportar PW' }); }
   });
 
-  app.get('/api/download/mot', async (_req, res) => {
+  app.get('/api/download/mot', isAuthenticated, async (_req, res) => {
     try {
       const rows = await storage.getAllDrivers();
       const csv = toCSV(rows, [
@@ -472,7 +473,7 @@ export async function registerRoutes(
     } catch (err) { res.status(500).json({ message: 'Erro ao exportar Motoristas' }); }
   });
 
-  app.get('/api/download/ginfo', async (_req, res) => {
+  app.get('/api/download/ginfo', isAuthenticated, async (_req, res) => {
     try {
       const rows = await storage.getAllGinfoRows();
       const csv = toCSV(rows, [
@@ -489,7 +490,7 @@ export async function registerRoutes(
     } catch (err) { res.status(500).json({ message: 'Erro ao exportar GINFO' }); }
   });
 
-  app.get('/api/download/kpi', async (_req, res) => {
+  app.get('/api/download/kpi', isAuthenticated, async (_req, res) => {
     try {
       const rows = await storage.getAllKpiResults();
       const csv = toCSV(rows, [
