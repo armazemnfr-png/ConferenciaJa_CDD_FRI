@@ -195,9 +195,12 @@ export class DatabaseStorage implements IStorage {
       // Matrícula: da conferência (digitada pelo motorista) ou do Promax PW (do sistema)
       let driverId = conf?.driverId ?? null;
       let driverName: string | null = null;
+      // Matrícula efetivamente resolvida (usada para buscar sala) — pode ser
+      // diferente de driverId quando este é vazio/"N/A" e a real vem do Promax
+      let resolvedReg: string | null = (driverId && driverId.trim().toUpperCase() !== 'N/A') ? driverId : null;
 
-      if (driverId) {
-        driverName = nameByReg.get(normalizeReg(driverId)) ?? null;
+      if (resolvedReg) {
+        driverName = nameByReg.get(normalizeReg(resolvedReg)) ?? null;
       }
 
       // Fallback: usar matrícula do Promax PW para cruzar com Base Matrícula
@@ -208,12 +211,13 @@ export class DatabaseStorage implements IStorage {
           if (resolvedName) {
             driverName = resolvedName;
           }
+          resolvedReg = promaxReg;
           // Sempre preencher driverId com matrícula do promax (mesmo sem nome na base)
-          if (!driverId) driverId = promaxReg;
+          if (!driverId || driverId.trim().toUpperCase() === 'N/A') driverId = promaxReg;
         }
       }
 
-      const room = driverId ? (roomByReg.get(normalizeReg(driverId)) ?? null) : null;
+      const room = resolvedReg ? (roomByReg.get(normalizeReg(resolvedReg)) ?? null) : null;
 
       maps.push({
         mapNumber,

@@ -1,1 +1,1 @@
-- [Promax driver lookup](promax-driver-lookup.md) — promax_data.motorista stores REGISTRATION NUMBER not name; must cross-reference with driver_base via normalizeReg to get name
+- [Adherence per-room matrícula resolution](adherence-room-matricula.md) — resolved driver registration must be reused for room lookup too, not just name lookup, or per-room totals undercount.
