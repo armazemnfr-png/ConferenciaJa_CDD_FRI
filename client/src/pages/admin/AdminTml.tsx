@@ -43,9 +43,11 @@ function localDateStr(d: Date): string {
 }
 
 const COLORS = {
-  matinal: "#3b82f6",
+  matinal: "#ec4899",
   matinalPatio: "#f59e0b",
   checklist: "#10b981",
+  checklistConference: "#f97316",
+  conference: "#0ea5e9",
   patioPortaria: "#8b5cf6",
 };
 
@@ -97,19 +99,23 @@ export default function AdminTml() {
     { name: "Matinal", value: Math.round(avg("matinalMin") * 10) / 10, fill: COLORS.matinal },
     { name: "Matinal→Pátio", value: Math.round(avg("matinalPatioMin") * 10) / 10, fill: COLORS.matinalPatio },
     { name: "Checklist", value: Math.round(avg("checklistMin") * 10) / 10, fill: COLORS.checklist },
+    { name: "Checklist→Conferência", value: Math.round(avg("checklistConferenceMin") * 10) / 10, fill: COLORS.checklistConference },
+    { name: "Conferência", value: Math.round(avg("conferenceMin") * 10) / 10, fill: COLORS.conference },
     { name: "Pátio→Portaria", value: Math.round(avg("patioPortariaMin") * 10) / 10, fill: COLORS.patioPortaria },
   ].filter(d => d.value > 0);
 
   const barData = useMemo(() => {
-    const byDate = new Map<string, { matinalMin: number; matinalPatioMin: number; checklistMin: number; patioPortariaMin: number; count: number }>();
+    const byDate = new Map<string, { matinalMin: number; matinalPatioMin: number; checklistMin: number; checklistConferenceMin: number; conferenceMin: number; patioPortariaMin: number; count: number }>();
     filtered.forEach(r => {
       const d = parseDisplayDate(r.dtOper);
       const key = d ? `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}` : r.dtOper;
-      const cur = byDate.get(key) || { matinalMin: 0, matinalPatioMin: 0, checklistMin: 0, patioPortariaMin: 0, count: 0 };
+      const cur = byDate.get(key) || { matinalMin: 0, matinalPatioMin: 0, checklistMin: 0, checklistConferenceMin: 0, conferenceMin: 0, patioPortariaMin: 0, count: 0 };
       byDate.set(key, {
         matinalMin: cur.matinalMin + r.matinalMin,
         matinalPatioMin: cur.matinalPatioMin + r.matinalPatioMin,
         checklistMin: cur.checklistMin + r.checklistMin,
+        checklistConferenceMin: cur.checklistConferenceMin + r.checklistConferenceMin,
+        conferenceMin: cur.conferenceMin + r.conferenceMin,
         patioPortariaMin: cur.patioPortariaMin + r.patioPortariaMin,
         count: cur.count + 1,
       });
@@ -120,6 +126,8 @@ export default function AdminTml() {
         Matinal: Math.round(v.matinalMin / v.count),
         "Matinal→Pátio": Math.round(v.matinalPatioMin / v.count),
         Checklist: Math.round(v.checklistMin / v.count),
+        "Checklist→Conferência": Math.round(v.checklistConferenceMin / v.count),
+        "Conferência": Math.round(v.conferenceMin / v.count),
         "Pátio→Portaria": Math.round(v.patioPortariaMin / v.count),
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
@@ -256,6 +264,8 @@ export default function AdminTml() {
                   <Bar dataKey="Matinal" stackId="a" fill={COLORS.matinal} />
                   <Bar dataKey="Matinal→Pátio" stackId="a" fill={COLORS.matinalPatio} />
                   <Bar dataKey="Checklist" stackId="a" fill={COLORS.checklist} />
+                  <Bar dataKey="Checklist→Conferência" stackId="a" fill={COLORS.checklistConference} />
+                  <Bar dataKey="Conferência" stackId="a" fill={COLORS.conference} />
                   <Bar dataKey="Pátio→Portaria" stackId="a" fill={COLORS.patioPortaria} radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
