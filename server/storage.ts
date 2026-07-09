@@ -150,10 +150,8 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Adicionar ao conjunto apenas conferências do dia (não históricas de outros dias)
-    for (const mapNumber of confByMap.keys()) {
-      expectedMaps.add(mapNumber);
-    }
+    // O total de mapas é sempre o do relatório WMS (detalhe separação) — não inflar
+    // com conferências de mapas que não constam no relatório atual.
 
     // 3. Motoristas pelo driverBase para resolver nomes
     const allDrivers = await db.select().from(driverBase);
