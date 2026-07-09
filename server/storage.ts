@@ -456,9 +456,28 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${conferences.startTime} <= ${endDate}`);
     }
 
-    return await db.select().from(conferences)
+    const rows = await db.select().from(conferences)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(conferences.startTime));
+
+    // Preencher matrícula ausente (ou "N/A") usando o Promax PW (fase CARREGADO) por mapa
+    const missing = rows.some(r => !r.driverId || r.driverId.trim().toUpperCase() === 'N/A');
+    if (missing) {
+      const allPromax = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista, fase: promaxData.fase }).from(promaxData);
+      const promaxRegByMap = new Map<string, string>();
+      allPromax.forEach(p => {
+        if (p.mapa && p.motorista && p.fase?.toUpperCase().trim() === 'CARREGADO') {
+          promaxRegByMap.set(p.mapa.trim().toUpperCase(), p.motorista.trim());
+        }
+      });
+      return rows.map(r => {
+        if (r.driverId && r.driverId.trim().toUpperCase() !== 'N/A') return r;
+        const promaxReg = promaxRegByMap.get(r.mapNumber.trim().toUpperCase());
+        return promaxReg ? { ...r, driverId: promaxReg } : r;
+      });
+    }
+
+    return rows;
   }
 
   async getConference(id: number): Promise<Conference | undefined> {
