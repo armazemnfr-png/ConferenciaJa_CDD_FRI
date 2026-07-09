@@ -61,7 +61,15 @@ type AdherenceMap = {
   status: 'completed' | 'in_progress' | 'not_started';
   driverId: string | null;
   driverName: string | null;
+  room: string | null;
   completedAt: string | null;
+};
+
+type AdherenceByRoom = {
+  room: string;
+  totalMaps: number;
+  conferencedMaps: number;
+  adherencePercentage: number;
 };
 
 type AdherenceReport = {
@@ -69,6 +77,7 @@ type AdherenceReport = {
   conferencedMaps: number;
   adherencePercentage: number;
   maps: AdherenceMap[];
+  byRoom: AdherenceByRoom[];
 };
 
 export function useAdherencia(date?: string) {

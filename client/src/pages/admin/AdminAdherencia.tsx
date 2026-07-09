@@ -208,6 +208,38 @@ export default function AdminAdherencia() {
           </div>
         </div>
 
+        {/* Aderência por Sala */}
+        {data.byRoom && data.byRoom.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {data.byRoom.map(r => {
+              const roomPctColor = r.adherencePercentage >= 90 ? "text-emerald-600" : r.adherencePercentage >= 70 ? "text-yellow-600" : "text-red-600";
+              const roomBarColor = r.adherencePercentage >= 90 ? "bg-emerald-500" : r.adherencePercentage >= 70 ? "bg-yellow-400" : "bg-red-500";
+              return (
+                <div key={r.room} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5" data-testid={`card-room-adherence-${r.room}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-slate-700">
+                      Aderência — Sala {r.room}
+                    </span>
+                    <span className={`text-2xl font-black ${roomPctColor}`} data-testid={`text-room-adherence-pct-${r.room}`}>
+                      {r.adherencePercentage}%
+                    </span>
+                  </div>
+                  <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${roomBarColor} transition-all duration-700`}
+                      style={{ width: `${r.adherencePercentage}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                    <span>{r.conferencedMaps} conferidos</span>
+                    <span>{r.totalMaps} total</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Tabela */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Filtros */}

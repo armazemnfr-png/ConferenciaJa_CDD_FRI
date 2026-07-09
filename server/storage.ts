@@ -101,7 +101,14 @@ export interface IStorage {
       status: 'completed' | 'in_progress' | 'not_started';
       driverId: string | null;
       driverName: string | null;
+      room: string | null;
       completedAt: string | null;
+    }[];
+    byRoom: {
+      room: string;
+      totalMaps: number;
+      conferencedMaps: number;
+      adherencePercentage: number;
     }[];
   }>;
   deleteConference(id: number): Promise<void>;
@@ -151,7 +158,11 @@ export class DatabaseStorage implements IStorage {
     // 3. Motoristas pelo driverBase para resolver nomes
     const allDrivers = await db.select().from(driverBase);
     const nameByReg = new Map<string, string>();
-    allDrivers.forEach(d => nameByReg.set(normalizeReg(d.registration), d.name));
+    const roomByReg = new Map<string, string>();
+    allDrivers.forEach(d => {
+      nameByReg.set(normalizeReg(d.registration), d.name);
+      if (d.room) roomByReg.set(normalizeReg(d.registration), d.room.trim());
+    });
 
     // 4. Promax (fase CARREGADO) → matrícula do motorista por mapa
     const allPromax = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista, fase: promaxData.fase }).from(promaxData);
@@ -168,6 +179,7 @@ export class DatabaseStorage implements IStorage {
       status: 'completed' | 'in_progress' | 'not_started';
       driverId: string | null;
       driverName: string | null;
+      room: string | null;
       completedAt: string | null;
     }[] = [];
 
@@ -203,11 +215,14 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
+      const room = driverId ? (roomByReg.get(normalizeReg(driverId)) ?? null) : null;
+
       maps.push({
         mapNumber,
         status,
         driverId,
         driverName,
+        room,
         completedAt: conf?.endTime ? conf.endTime.toISOString() : null,
       });
     }
@@ -220,7 +235,25 @@ export class DatabaseStorage implements IStorage {
     const totalMaps = maps.length;
     const adherencePercentage = totalMaps > 0 ? Math.round((conferencedMaps / totalMaps) * 100) : 0;
 
-    return { totalMaps, conferencedMaps, adherencePercentage, maps };
+    // 6. Aderência por sala (agrupando pelos mapas com sala identificada)
+    const byRoomMap = new Map<string, { total: number; conferenced: number }>();
+    for (const m of maps) {
+      if (!m.room) continue;
+      const cur = byRoomMap.get(m.room) ?? { total: 0, conferenced: 0 };
+      cur.total += 1;
+      if (m.status === 'completed') cur.conferenced += 1;
+      byRoomMap.set(m.room, cur);
+    }
+    const byRoom = Array.from(byRoomMap.entries())
+      .map(([room, { total, conferenced }]) => ({
+        room,
+        totalMaps: total,
+        conferencedMaps: conferenced,
+        adherencePercentage: total > 0 ? Math.round((conferenced / total) * 100) : 0,
+      }))
+      .sort((a, b) => a.room.localeCompare(b.room));
+
+    return { totalMaps, conferencedMaps, adherencePercentage, maps, byRoom };
   }
 
   async getDriverRanking(filters?: { startDate?: string; endDate?: string }): Promise<{ room: string; top: any[]; bottom: any[] }[]> {
