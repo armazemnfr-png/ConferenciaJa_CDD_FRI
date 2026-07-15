@@ -663,28 +663,23 @@ export class DatabaseStorage implements IStorage {
       return now.toISOString().slice(0, 10);
     };
 
-    // Usar a data mais comum nos deliveryDates (data real do relatório)
-    const dateCounts = new Map<string, number>();
+    // Agrupar itens por data do relatório (campo deliveryDate → YYYY-MM-DD)
+    // Um único arquivo pode conter vários dias — cada grupo é salvo separadamente.
+    const fallbackDate = todayBrasilia();
+    const byDate = new Map<string, InsertWmsItem[]>();
     for (const item of items) {
-      const d = parseBrDate(item.deliveryDate);
-      if (d) dateCounts.set(d, (dateCounts.get(d) ?? 0) + 1);
-    }
-    let reportDate: string;
-    if (dateCounts.size > 0) {
-      reportDate = Array.from(dateCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
-    } else {
-      reportDate = todayBrasilia();
+      const d = parseBrDate(item.deliveryDate) ?? fallbackDate;
+      if (!byDate.has(d)) byDate.set(d, []);
+      byDate.get(d)!.push({ ...item, uploadDate: d });
     }
 
-    // Marcar todos os itens com a data real do relatório
-    const itemsWithDate = items.map(item => ({ ...item, uploadDate: reportDate }));
-
-    // Remover apenas os dados dessa data antes de reinserir (outros dias permanecem)
-    await db.delete(wmsItems).where(eq(wmsItems.uploadDate, reportDate));
-
+    // Para cada data encontrada: remove os dados antigos daquela data e reinseril
     const chunkSize = 200;
-    for (let i = 0; i < itemsWithDate.length; i += chunkSize) {
-      await db.insert(wmsItems).values(itemsWithDate.slice(i, i + chunkSize));
+    for (const [date, group] of Array.from(byDate.entries())) {
+      await db.delete(wmsItems).where(eq(wmsItems.uploadDate, date));
+      for (let i = 0; i < group.length; i += chunkSize) {
+        await db.insert(wmsItems).values(group.slice(i, i + chunkSize));
+      }
     }
   }
 
