@@ -122,6 +122,7 @@ const ConferenceBays = () => {
 
   const getSmartLabel = (rawName: string) => {
     if (!rawName) return '';
+    if (rawName.toUpperCase().startsWith('Z_')) return 'Não Palletizado';
     const parts = rawName.split('_');
     return `${parts[1] || ''}${(parts[0] || '').replace('P', '').padStart(2, '0')}`;
   };
@@ -132,6 +133,7 @@ const ConferenceBays = () => {
   }, []);
   const ajudanteBays = uniqueBays.filter(b => b && b.split('_')[1] === 'A');
   const motoristaBays = uniqueBays.filter(b => b && b.split('_')[1] === 'M');
+  const outrasBays = uniqueBays.filter(b => b && b.split('_')[1] !== 'A' && b.split('_')[1] !== 'M');
 
   const getBayProgress = (bay: string) => {
     const bayItems = items.filter(i => i.bay_number === bay);
@@ -325,6 +327,40 @@ const ConferenceBays = () => {
           })}
         </div>
       </main>
+
+      {/* Seção: Itens Não Palletizados */}
+      {outrasBays.length > 0 && (
+        <div className="px-4 pb-4 max-w-5xl mx-auto w-full">
+          <div className="flex items-center gap-2 text-orange-600 font-black text-xs uppercase px-2 mb-3 mt-2">
+            <AlertTriangle size={18} strokeWidth={3}/> Item Não Palletizado
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            {outrasBays.map(bay => {
+              const { done, total } = getBayProgress(bay);
+              const isComplete = done === total && total > 0;
+              return (
+                <button
+                  key={bay}
+                  onClick={() => setSelectedBay(bay)}
+                  className={`w-full p-4 rounded-[2rem] border-2 text-left shadow-sm active:scale-95 transition-all flex items-center gap-4 ${isComplete ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}
+                >
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isComplete ? 'bg-green-500' : 'bg-orange-400'}`}>
+                    <AlertTriangle size={22} strokeWidth={3} className="text-white"/>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-slate-800 font-black text-sm uppercase">Item Não Palletizado</p>
+                    <p className="text-[10px] font-bold text-slate-400">{done}/{total} ITENS</p>
+                  </div>
+                  {isComplete
+                    ? <CheckCircle className="text-green-500 shrink-0" size={22} strokeWidth={3}/>
+                    : <ChevronRight className="text-orange-300 shrink-0" size={22}/>
+                  }
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {globalPercent === 100 && (
         <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-md border-t-2 z-30">
           <button onClick={handleFinalizeCarga} className="w-full bg-[#27AE60] text-white py-6 rounded-[2rem] font-black text-2xl uppercase flex items-center justify-center gap-4 shadow-xl active:scale-95 transition-all animate-pulse">
