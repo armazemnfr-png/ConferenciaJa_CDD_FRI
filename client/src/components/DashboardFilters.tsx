@@ -64,7 +64,17 @@ export default function DashboardFilters({ onFilter }: { onFilter: (filters: any
         <label className="text-xs font-bold text-gray-500 flex items-center gap-1">
           <CalendarIcon size={14} /> PERÍODO
         </label>
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover
+          open={open}
+          onOpenChange={(newOpen) => {
+            // Se fechar com só a data inicial, completa como dia único
+            if (!newOpen && range?.from && !range?.to) {
+              const singleDay = { from: range.from, to: range.from };
+              setRange(singleDay);
+            }
+            setOpen(newOpen);
+          }}
+        >
           <PopoverTrigger asChild>
             <button
               data-testid="button-period-picker"
@@ -82,7 +92,6 @@ export default function DashboardFilters({ onFilter }: { onFilter: (filters: any
               selected={range}
               onSelect={(newRange) => {
                 setRange(newRange);
-                // Fecha o calendário somente quando as duas datas estão escolhidas
                 if (newRange?.from && newRange?.to) setOpen(false);
               }}
               locale={ptBR}
