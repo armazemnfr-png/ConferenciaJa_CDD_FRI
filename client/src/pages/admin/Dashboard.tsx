@@ -43,15 +43,7 @@ export default function Dashboard() {
     return m;
   }, [drivers]);
 
-  if (metricsLoading || confLoading) {
-    return (
-      <AdminLayout>
-        <div className="h-[60vh] flex items-center justify-center">
-          <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        </div>
-      </AdminLayout>
-    );
-  }
+  const isLoading = metricsLoading || confLoading;
 
   const MetricCard = ({ title, value, icon: Icon, description, color }: any) => (
     <div className="bg-card rounded-2xl p-6 border border-border shadow-sm hover:shadow-md transition-shadow">
@@ -98,38 +90,48 @@ export default function Dashboard() {
 
         <DashboardFilters onFilter={(newFilters) => setActiveFilters(newFilters)} />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <MetricCard 
-            title="Tempo Médio" 
-            value={formatFullTime(metrics?.averageTimeMinutes)}
-            icon={Clock}
-            color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
-            description="Minutos e Segundos"
-          />
-          <MetricCard 
-            title="Divergências" 
-            // Adicionamos o Number().toFixed(1) aqui para garantir a exibição
-            value={`${Number(metrics?.divergencePercentage || 0).toFixed(1)}%`}
-            icon={AlertTriangle}
-            color="bg-orange-100 text-orange-600"
-            description="Itens com erro de qtd"
-          />
-          <MetricCard 
-            title="Avarias" 
-            // Aplicamos o mesmo para Avarias por segurança
-            value={`${Number(metrics?.damagePercentage || 0).toFixed(1)}%`}
-            icon={PackageX}
-            color="bg-red-100 text-red-600"
-            description="Produtos danificados"
-          />
-          <MetricCard 
-            title="Total Mapas" 
-            value={metrics?.totalConferences || 0}
-            icon={FileSpreadsheet}
-            color="bg-green-100 text-green-600"
-            description="Total no sistema"
-          />
-        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="bg-card rounded-2xl p-6 border border-border shadow-sm animate-pulse">
+                <div className="h-4 bg-muted rounded w-24 mb-3" />
+                <div className="h-8 bg-muted rounded w-16 mb-4" />
+                <div className="h-3 bg-muted rounded w-32" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <MetricCard 
+              title="Tempo Médio" 
+              value={formatFullTime(metrics?.averageTimeMinutes)}
+              icon={Clock}
+              color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+              description="Minutos e Segundos"
+            />
+            <MetricCard 
+              title="Divergências" 
+              value={`${Number(metrics?.divergencePercentage || 0).toFixed(1)}%`}
+              icon={AlertTriangle}
+              color="bg-orange-100 text-orange-600"
+              description="Itens com erro de qtd"
+            />
+            <MetricCard 
+              title="Avarias" 
+              value={`${Number(metrics?.damagePercentage || 0).toFixed(1)}%`}
+              icon={PackageX}
+              color="bg-red-100 text-red-600"
+              description="Produtos danificados"
+            />
+            <MetricCard 
+              title="Total Mapas" 
+              value={metrics?.totalConferences || 0}
+              icon={FileSpreadsheet}
+              color="bg-green-100 text-green-600"
+              description="Total no sistema"
+            />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 bg-card rounded-2xl border border-border p-6 shadow-sm">
