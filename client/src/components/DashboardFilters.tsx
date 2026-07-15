@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { format, subDays } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { DateRange } from "react-day-picker";
 import { Calendar as CalendarIcon, Search, User, Map as MapIcon, FilterX } from "lucide-react";
@@ -19,11 +19,12 @@ export default function DashboardFilters({ onFilter }: { onFilter: (filters: any
   const [driverId, setDriverId] = useState("");
   const [mapNumber, setMapNumber] = useState("");
 
-  // Aplica automaticamente ao montar e quando o período muda
+  // Aplica filtro apenas quando AMBAS as datas estão definidas
   useEffect(() => {
+    if (!range?.from || !range?.to) return;
     onFilter({
-      startDate: range?.from ? toYMD(range.from) : "",
-      endDate: range?.to ? toYMD(range.to) : "",
+      startDate: toYMD(range.from),
+      endDate: toYMD(range.to),
       driverId,
       mapNumber,
     });
@@ -31,9 +32,10 @@ export default function DashboardFilters({ onFilter }: { onFilter: (filters: any
   }, [range]);
 
   const handleApply = () => {
+    if (!range?.from || !range?.to) return;
     onFilter({
-      startDate: range?.from ? toYMD(range.from) : "",
-      endDate: range?.to ? toYMD(range.to) : "",
+      startDate: toYMD(range.from),
+      endDate: toYMD(range.to),
       driverId,
       mapNumber,
     });
@@ -48,8 +50,11 @@ export default function DashboardFilters({ onFilter }: { onFilter: (filters: any
 
   const rangeLabel = () => {
     if (!range?.from) return "Selecionar período";
-    if (!range.to) return format(range.from, "dd/MM/yyyy", { locale: ptBR });
-    return `${format(range.from, "dd/MM/yyyy", { locale: ptBR })} – ${format(range.to, "dd/MM/yyyy", { locale: ptBR })}`;
+    const fromFmt = format(range.from, "dd/MM/yyyy", { locale: ptBR });
+    if (!range.to) return `${fromFmt} → selecione a data final`;
+    const toFmt = format(range.to, "dd/MM/yyyy", { locale: ptBR });
+    if (fromFmt === toFmt) return fromFmt;
+    return `${fromFmt} – ${toFmt}`;
   };
 
   return (
@@ -77,6 +82,7 @@ export default function DashboardFilters({ onFilter }: { onFilter: (filters: any
               selected={range}
               onSelect={(newRange) => {
                 setRange(newRange);
+                // Fecha o calendário somente quando as duas datas estão escolhidas
                 if (newRange?.from && newRange?.to) setOpen(false);
               }}
               locale={ptBR}
