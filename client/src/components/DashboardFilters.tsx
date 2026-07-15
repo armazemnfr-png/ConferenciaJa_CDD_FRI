@@ -12,7 +12,7 @@ const toYMD = (d: Date) =>
 export default function DashboardFilters({ onFilter }: { onFilter: (filters: any) => void }) {
   const today = new Date();
   const [range, setRange] = useState<DateRange | undefined>({
-    from: subDays(today, 6),
+    from: today,
     to: today,
   });
   const [open, setOpen] = useState(false);
@@ -40,10 +40,10 @@ export default function DashboardFilters({ onFilter }: { onFilter: (filters: any
   };
 
   const handleClear = () => {
-    setRange({ from: subDays(today, 6), to: today });
+    setRange({ from: today, to: today });
     setDriverId("");
     setMapNumber("");
-    onFilter({ startDate: toYMD(subDays(today, 6)), endDate: toYMD(today), driverId: "", mapNumber: "" });
+    onFilter({ startDate: toYMD(today), endDate: toYMD(today), driverId: "", mapNumber: "" });
   };
 
   const rangeLabel = () => {
