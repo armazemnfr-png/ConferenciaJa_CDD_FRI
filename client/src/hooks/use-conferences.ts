@@ -72,20 +72,29 @@ type AdherenceByRoom = {
   adherencePercentage: number;
 };
 
+type AdherenceByDay = {
+  date: string;
+  totalMaps: number;
+  conferencedMaps: number;
+  adherencePercentage: number;
+};
+
 type AdherenceReport = {
   totalMaps: number;
   conferencedMaps: number;
   adherencePercentage: number;
   maps: AdherenceMap[];
   byRoom: AdherenceByRoom[];
+  byDay: AdherenceByDay[];
 };
 
-export function useAdherencia(date?: string) {
+export function useAdherencia(startDate?: string, endDate?: string) {
   return useQuery<AdherenceReport>({
-    queryKey: ["/api/dashboard/adherencia", date],
+    queryKey: ["/api/dashboard/adherencia", startDate, endDate],
     queryFn: async () => {
       const url = new URL(window.location.origin + "/api/dashboard/adherencia");
-      if (date) url.searchParams.set("date", date);
+      if (startDate) url.searchParams.set("startDate", startDate);
+      if (endDate) url.searchParams.set("endDate", endDate);
       const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Erro ao buscar aderência");
       return res.json();

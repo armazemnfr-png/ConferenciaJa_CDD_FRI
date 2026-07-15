@@ -46,6 +46,7 @@ export const wmsItems = pgTable("wms_items", {
   partialCountReason: text("partial_count_reason"),
   hasDamage: boolean("has_damage").default(false),
   damageDescription: text("damage_description"),
+  uploadDate: text("upload_date"),
 });
 
 export const promaxData = pgTable("promax_data", {

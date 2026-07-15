@@ -171,8 +171,9 @@ export async function registerRoutes(
 
   app.get("/api/dashboard/adherencia", async (req, res) => {
     try {
-      const dateStr = req.query.date as string | undefined;
-      const data = await storage.getAdherenceReport(dateStr);
+      const startDate = (req.query.startDate || req.query.date) as string | undefined;
+      const endDate = req.query.endDate as string | undefined;
+      const data = await storage.getAdherenceReport(startDate, endDate);
       res.json(data);
     } catch (err) {
       console.error("Erro ao calcular aderência:", err);

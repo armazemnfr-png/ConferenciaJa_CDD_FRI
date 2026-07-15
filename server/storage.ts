@@ -121,28 +121,67 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  async getAdherenceReport(dateStr?: string) {
-    // Determinar o dia de referência (padrão: hoje no horário de Brasília UTC-3)
-    const refDate = dateStr
-      ? new Date(dateStr + "T00:00:00")
-      : (() => { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset() - 180); return new Date(now.toISOString().slice(0, 10) + "T00:00:00"); })();
-    const refDateEnd = new Date(refDate);
-    refDateEnd.setDate(refDateEnd.getDate() + 1);
+  async getAdherenceReport(startDate?: string, endDate?: string) {
+    // Datas de referência (padrão: hoje no horário de Brasília UTC-3)
+    const todayBrasilia = () => {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset() - 180);
+      return now.toISOString().slice(0, 10);
+    };
+    const start = startDate || todayBrasilia();
+    const end = endDate || start;
+    const isSingleDay = start === end;
 
-    // 1. Mapas esperados do WMS atual (sempre refletem o último upload — tabela é truncada a cada upload)
-    const wmsRows = await db.selectDistinct({ mapNumber: wmsItems.mapNumber }).from(wmsItems);
-    const expectedMaps = new Set(wmsRows.map(r => r.mapNumber.trim()));
+    // 1. Mapas WMS filtrados por upload_date
+    // Para datas com dados históricos (uploadDate preenchido), filtra pelo intervalo.
+    // Fallback: se o intervalo for de um único dia e não houver dados com uploadDate,
+    // usa todos os itens da tabela (compatibilidade com uploads antigos).
+    const wmsWithDate = await db.selectDistinct({
+      mapNumber: wmsItems.mapNumber,
+      uploadDate: wmsItems.uploadDate,
+    }).from(wmsItems).where(
+      and(
+        sql`${wmsItems.uploadDate} IS NOT NULL`,
+        sql`${wmsItems.uploadDate} >= ${start}`,
+        sql`${wmsItems.uploadDate} <= ${end}`
+      )
+    );
 
-    // 2. Conferências APENAS do dia de referência
+    // Agrupar mapas por dia
+    const mapsByDay = new Map<string, Set<string>>();
+    for (const row of wmsWithDate) {
+      const d = row.uploadDate!;
+      if (!mapsByDay.has(d)) mapsByDay.set(d, new Set());
+      mapsByDay.get(d)!.add(row.mapNumber.trim());
+    }
+
+    // Fallback para uploads sem uploadDate (legado)
+    if (mapsByDay.size === 0 && isSingleDay) {
+      const legacy = await db.selectDistinct({ mapNumber: wmsItems.mapNumber }).from(wmsItems);
+      if (legacy.length > 0) {
+        mapsByDay.set(start, new Set(legacy.map(r => r.mapNumber.trim())));
+      }
+    }
+
+    const allExpectedMaps = new Set<string>();
+    Array.from(mapsByDay.values()).forEach(s => s.forEach((m: string) => allExpectedMaps.add(m)));
+
+    // 2. Conferências no intervalo de datas
+    const startTs = new Date(start + "T00:00:00");
+    const endTs = new Date(end + "T00:00:00");
+    endTs.setDate(endTs.getDate() + 1);
+
     const allConfs = await db.select().from(conferences);
-    const todayConfs = allConfs.filter(c => {
+    const rangeConfs = allConfs.filter(c => {
       const ts = c.startTime ?? c.createdAt;
       if (!ts) return false;
-      return ts >= refDate && ts < refDateEnd;
+      return ts >= startTs && ts < endTs;
     });
     const statusPriority: Record<string, number> = { completed: 3, in_progress: 2, pending: 1 };
+
+    // Índice: mapa → melhor conferência no período
     const confByMap = new Map<string, typeof allConfs[0]>();
-    for (const c of todayConfs) {
+    for (const c of rangeConfs) {
       const key = c.mapNumber.trim();
       const existing = confByMap.get(key);
       if (!existing || (statusPriority[c.status] ?? 0) > (statusPriority[existing.status] ?? 0)) {
@@ -150,10 +189,22 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // O total de mapas é sempre o do relatório WMS (detalhe separação) — não inflar
-    // com conferências de mapas que não constam no relatório atual.
+    // Índice: mapa → melhor conferência por dia (para byDay)
+    const confByDayMap = new Map<string, Map<string, typeof allConfs[0]>>();
+    for (const c of rangeConfs) {
+      const ts = c.startTime ?? c.createdAt;
+      if (!ts) continue;
+      const dayStr = ts.toISOString().slice(0, 10);
+      if (!confByDayMap.has(dayStr)) confByDayMap.set(dayStr, new Map());
+      const dayConfs = confByDayMap.get(dayStr)!;
+      const key = c.mapNumber.trim();
+      const existing = dayConfs.get(key);
+      if (!existing || (statusPriority[c.status] ?? 0) > (statusPriority[existing.status] ?? 0)) {
+        dayConfs.set(key, c);
+      }
+    }
 
-    // 3. Motoristas pelo driverBase para resolver nomes
+    // 3. Motoristas
     const allDrivers = await db.select().from(driverBase);
     const nameByReg = new Map<string, string>();
     const roomByReg = new Map<string, string>();
@@ -162,16 +213,54 @@ export class DatabaseStorage implements IStorage {
       if (d.room) roomByReg.set(normalizeReg(d.registration), d.room.trim());
     });
 
-    // 4. Promax (fase CARREGADO) → matrícula do motorista por mapa
+    // 4. Promax → matrícula por mapa
     const allPromax = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista, fase: promaxData.fase }).from(promaxData);
-    const promaxRegByMap = new Map<string, string>(); // mapa → matrícula
+    const promaxRegByMap = new Map<string, string>();
     allPromax.forEach(p => {
       if (p.mapa && p.motorista && p.fase?.toUpperCase().trim() === 'CARREGADO') {
         promaxRegByMap.set(p.mapa.trim(), p.motorista.trim());
       }
     });
 
-    // 5. Montar relatório
+    // Função auxiliar: resolve motorista e sala de um mapa
+    const resolveDriver = (mapNumber: string, conf: typeof allConfs[0] | undefined) => {
+      let driverId = conf?.driverId ?? null;
+      let driverName: string | null = null;
+      let resolvedReg: string | null = (driverId && driverId.trim().toUpperCase() !== 'N/A') ? driverId : null;
+      if (resolvedReg) driverName = nameByReg.get(normalizeReg(resolvedReg)) ?? null;
+      if (!driverName) {
+        const promaxReg = promaxRegByMap.get(mapNumber);
+        if (promaxReg) {
+          driverName = nameByReg.get(normalizeReg(promaxReg)) ?? null;
+          resolvedReg = promaxReg;
+          if (!driverId || driverId.trim().toUpperCase() === 'N/A') driverId = promaxReg;
+        }
+      }
+      const room = resolvedReg ? (roomByReg.get(normalizeReg(resolvedReg)) ?? null) : null;
+      return { driverId, driverName, room };
+    };
+
+    // 5. Montar byDay
+    const byDay: { date: string; totalMaps: number; conferencedMaps: number; adherencePercentage: number }[] = [];
+    const sortedDays = Array.from(mapsByDay.keys()).sort();
+    for (const day of sortedDays) {
+      const dayMaps = mapsByDay.get(day)!;
+      const dayConfs = confByDayMap.get(day) ?? new Map();
+      let dayConferenced = 0;
+      Array.from(dayMaps).forEach((mapNumber: string) => {
+        const conf = dayConfs.get(mapNumber);
+        if (conf?.status === 'completed') dayConferenced++;
+      });
+      const total = dayMaps.size;
+      byDay.push({
+        date: day,
+        totalMaps: total,
+        conferencedMaps: dayConferenced,
+        adherencePercentage: total > 0 ? Math.round((dayConferenced / total) * 100) : 0,
+      });
+    }
+
+    // 6. Montar lista de mapas detalhada (apenas para dia único)
     const maps: {
       mapNumber: string;
       status: 'completed' | 'in_progress' | 'not_started';
@@ -181,71 +270,47 @@ export class DatabaseStorage implements IStorage {
       completedAt: string | null;
     }[] = [];
 
-    for (const mapNumber of Array.from(expectedMaps)) {
-      const conf = confByMap.get(mapNumber);
-      let status: 'completed' | 'in_progress' | 'not_started';
-      if (!conf) {
-        status = 'not_started';
-      } else if (conf.status === 'completed') {
-        status = 'completed';
-      } else {
-        status = 'in_progress';
+    if (isSingleDay) {
+      const dayMaps = mapsByDay.get(start) ?? new Set<string>();
+      for (const mapNumber of Array.from(dayMaps)) {
+        const conf = confByMap.get(mapNumber);
+        let status: 'completed' | 'in_progress' | 'not_started';
+        if (!conf) status = 'not_started';
+        else if (conf.status === 'completed') status = 'completed';
+        else status = 'in_progress';
+        const { driverId, driverName, room } = resolveDriver(mapNumber, conf);
+        maps.push({
+          mapNumber,
+          status,
+          driverId,
+          driverName,
+          room,
+          completedAt: conf?.endTime ? conf.endTime.toISOString() : null,
+        });
       }
-
-      // Matrícula: da conferência (digitada pelo motorista) ou do Promax PW (do sistema)
-      let driverId = conf?.driverId ?? null;
-      let driverName: string | null = null;
-      // Matrícula efetivamente resolvida (usada para buscar sala) — pode ser
-      // diferente de driverId quando este é vazio/"N/A" e a real vem do Promax
-      let resolvedReg: string | null = (driverId && driverId.trim().toUpperCase() !== 'N/A') ? driverId : null;
-
-      if (resolvedReg) {
-        driverName = nameByReg.get(normalizeReg(resolvedReg)) ?? null;
-      }
-
-      // Fallback: usar matrícula do Promax PW para cruzar com Base Matrícula
-      if (!driverName) {
-        const promaxReg = promaxRegByMap.get(mapNumber);
-        if (promaxReg) {
-          const resolvedName = nameByReg.get(normalizeReg(promaxReg)) ?? null;
-          if (resolvedName) {
-            driverName = resolvedName;
-          }
-          resolvedReg = promaxReg;
-          // Sempre preencher driverId com matrícula do promax (mesmo sem nome na base)
-          if (!driverId || driverId.trim().toUpperCase() === 'N/A') driverId = promaxReg;
-        }
-      }
-
-      const room = resolvedReg ? (roomByReg.get(normalizeReg(resolvedReg)) ?? null) : null;
-
-      maps.push({
-        mapNumber,
-        status,
-        driverId,
-        driverName,
-        room,
-        completedAt: conf?.endTime ? conf.endTime.toISOString() : null,
-      });
+      const order = { not_started: 0, in_progress: 1, completed: 2 };
+      maps.sort((a, b) => order[a.status] - order[b.status] || a.mapNumber.localeCompare(b.mapNumber));
     }
 
-    // Ordenar: não iniciados primeiro, depois em progresso, depois concluídos; dentro de cada grupo, por mapa
-    const order = { not_started: 0, in_progress: 1, completed: 2 };
-    maps.sort((a, b) => order[a.status] - order[b.status] || a.mapNumber.localeCompare(b.mapNumber));
-
-    const conferencedMaps = maps.filter(m => m.status === 'completed').length;
-    const totalMaps = maps.length;
+    // 7. Totais gerais
+    const totalMaps = byDay.reduce((s, d) => s + d.totalMaps, 0);
+    const conferencedMaps = byDay.reduce((s, d) => s + d.conferencedMaps, 0);
     const adherencePercentage = totalMaps > 0 ? Math.round((conferencedMaps / totalMaps) * 100) : 0;
 
-    // 6. Aderência por sala (agrupando pelos mapas com sala identificada)
+    // 8. Aderência por sala (agregada no período)
     const byRoomMap = new Map<string, { total: number; conferenced: number }>();
-    for (const m of maps) {
-      if (!m.room) continue;
-      const cur = byRoomMap.get(m.room) ?? { total: 0, conferenced: 0 };
-      cur.total += 1;
-      if (m.status === 'completed') cur.conferenced += 1;
-      byRoomMap.set(m.room, cur);
-    }
+    Array.from(mapsByDay.entries()).forEach(([day, dayMaps]) => {
+      const dayConfs = confByDayMap.get(day) ?? new Map();
+      Array.from(dayMaps).forEach((mapNumber: string) => {
+        const conf = dayConfs.get(mapNumber) ?? confByMap.get(mapNumber);
+        const { room } = resolveDriver(mapNumber, conf);
+        if (!room) return;
+        const cur = byRoomMap.get(room) ?? { total: 0, conferenced: 0 };
+        cur.total += 1;
+        if ((dayConfs.get(mapNumber) ?? confByMap.get(mapNumber))?.status === 'completed') cur.conferenced += 1;
+        byRoomMap.set(room, cur);
+      });
+    });
     const byRoom = Array.from(byRoomMap.entries())
       .map(([room, { total, conferenced }]) => ({
         room,
@@ -255,7 +320,7 @@ export class DatabaseStorage implements IStorage {
       }))
       .sort((a, b) => a.room.localeCompare(b.room));
 
-    return { totalMaps, conferencedMaps, adherencePercentage, maps, byRoom };
+    return { totalMaps, conferencedMaps, adherencePercentage, maps, byRoom, byDay };
   }
 
   async getDriverRanking(filters?: { startDate?: string; endDate?: string }): Promise<{ room: string; top: any[]; bottom: any[] }[]> {
@@ -581,10 +646,21 @@ export class DatabaseStorage implements IStorage {
 
   async bulkInsertWmsItems(items: InsertWmsItem[]): Promise<void> {
     if (items.length === 0) return;
-    await db.execute(sql`TRUNCATE TABLE wms_items RESTART IDENTITY CASCADE`);
+
+    // Calcular data de hoje em horário de Brasília (UTC-3)
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset() - 180);
+    const todayStr = now.toISOString().slice(0, 10);
+
+    // Marcar todos os itens com a data de upload (preserva histórico por dia)
+    const itemsWithDate = items.map(item => ({ ...item, uploadDate: todayStr }));
+
+    // Remover apenas os dados do dia atual antes de reinserir (histórico de outros dias permanece)
+    await db.delete(wmsItems).where(eq(wmsItems.uploadDate, todayStr));
+
     const chunkSize = 200;
-    for (let i = 0; i < items.length; i += chunkSize) {
-      await db.insert(wmsItems).values(items.slice(i, i + chunkSize));
+    for (let i = 0; i < itemsWithDate.length; i += chunkSize) {
+      await db.insert(wmsItems).values(itemsWithDate.slice(i, i + chunkSize));
     }
   }
 
