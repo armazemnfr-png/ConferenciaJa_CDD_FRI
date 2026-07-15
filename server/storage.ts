@@ -647,16 +647,40 @@ export class DatabaseStorage implements IStorage {
   async bulkInsertWmsItems(items: InsertWmsItem[]): Promise<void> {
     if (items.length === 0) return;
 
-    // Calcular data de hoje em horário de Brasília (UTC-3)
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset() - 180);
-    const todayStr = now.toISOString().slice(0, 10);
+    // Determinar a data do relatório a partir do deliveryDate dos itens (ex: "14/07/2026 00:00:00")
+    // Se não houver deliveryDate, usa a data de hoje em horário de Brasília (UTC-3)
+    const parseBrDate = (s: string | null | undefined): string | null => {
+      if (!s) return null;
+      // Formato: "DD/MM/YYYY ..." ou "DD/MM/YYYY"
+      const m = s.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      if (!m) return null;
+      return `${m[3]}-${m[2]}-${m[1]}`; // → YYYY-MM-DD
+    };
 
-    // Marcar todos os itens com a data de upload (preserva histórico por dia)
-    const itemsWithDate = items.map(item => ({ ...item, uploadDate: todayStr }));
+    const todayBrasilia = () => {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset() - 180);
+      return now.toISOString().slice(0, 10);
+    };
 
-    // Remover apenas os dados do dia atual antes de reinserir (histórico de outros dias permanece)
-    await db.delete(wmsItems).where(eq(wmsItems.uploadDate, todayStr));
+    // Usar a data mais comum nos deliveryDates (data real do relatório)
+    const dateCounts = new Map<string, number>();
+    for (const item of items) {
+      const d = parseBrDate(item.deliveryDate);
+      if (d) dateCounts.set(d, (dateCounts.get(d) ?? 0) + 1);
+    }
+    let reportDate: string;
+    if (dateCounts.size > 0) {
+      reportDate = Array.from(dateCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
+    } else {
+      reportDate = todayBrasilia();
+    }
+
+    // Marcar todos os itens com a data real do relatório
+    const itemsWithDate = items.map(item => ({ ...item, uploadDate: reportDate }));
+
+    // Remover apenas os dados dessa data antes de reinserir (outros dias permanecem)
+    await db.delete(wmsItems).where(eq(wmsItems.uploadDate, reportDate));
 
     const chunkSize = 200;
     for (let i = 0; i < itemsWithDate.length; i += chunkSize) {
