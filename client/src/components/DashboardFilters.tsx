@@ -12,11 +12,11 @@ export default function DashboardFilters({ onFilter }: { onFilter: (filters: any
     mapNumber: "",
   });
 
-  // Aplica o filtro de hoje automaticamente ao montar
+  // Aplica automaticamente quando as datas mudam
   useEffect(() => {
     onFilter(filters);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [filters.startDate, filters.endDate]);
 
   const handleApply = () => {
     onFilter(filters);
