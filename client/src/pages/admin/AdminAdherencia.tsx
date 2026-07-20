@@ -311,14 +311,28 @@ export default function AdminAdherencia() {
             {data.byRoom && data.byRoom.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {data.byRoom.map(r => {
-                  const roomPctColor = r.adherencePercentage >= 90 ? "text-emerald-600" : r.adherencePercentage >= 70 ? "text-yellow-600" : "text-red-600";
-                  const roomBarColor = r.adherencePercentage >= 90 ? "bg-emerald-500" : r.adherencePercentage >= 70 ? "bg-yellow-400" : "bg-red-500";
+                  const isSemSala = r.room === 'Sem Sala';
+                  const roomPctColor = isSemSala
+                    ? "text-slate-500"
+                    : r.adherencePercentage >= 90 ? "text-emerald-600" : r.adherencePercentage >= 70 ? "text-yellow-600" : "text-red-600";
+                  const roomBarColor = isSemSala
+                    ? "bg-slate-400"
+                    : r.adherencePercentage >= 90 ? "bg-emerald-500" : r.adherencePercentage >= 70 ? "bg-yellow-400" : "bg-red-500";
                   return (
-                    <div key={r.room} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5" data-testid={`card-room-adherence-${r.room}`}>
+                    <div
+                      key={r.room}
+                      className={`rounded-2xl border shadow-sm p-5 ${isSemSala ? "bg-slate-50 border-slate-300 col-span-1 sm:col-span-2" : "bg-white border-slate-200"}`}
+                      data-testid={`card-room-adherence-${r.room}`}
+                    >
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-slate-700">
-                          Aderência — Sala {r.room}
-                        </span>
+                        <div>
+                          <span className="text-sm font-semibold text-slate-700">
+                            {isSemSala ? "Motoristas sem Sala cadastrada" : `Aderência — Sala ${r.room}`}
+                          </span>
+                          {isSemSala && (
+                            <p className="text-xs text-slate-400 mt-0.5">Matriculas não encontradas na base de motoristas</p>
+                          )}
+                        </div>
                         <span className={`text-2xl font-black ${roomPctColor}`} data-testid={`text-room-adherence-pct-${r.room}`}>
                           {r.adherencePercentage}%
                         </span>
