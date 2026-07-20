@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { Truck, CheckCircle, ChevronLeft, User, ChevronRight, AlertTriangle, Hash, Box, Clock, Map } from 'lucide-react';
 
@@ -28,6 +28,7 @@ const ConferenceBays = () => {
 
   const [isPartialModalOpen, setIsPartialModalOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<Item | null>(null);
+  const autoFinalizedRef = useRef(false);
   const [tempQuantity, setTempQuantity] = useState('');
 
   // Timer de conferência
@@ -171,6 +172,14 @@ const ConferenceBays = () => {
       alert("Erro de conexão ao finalizar a carga.");
     }
   };
+
+  // Auto-finaliza quando todos os itens estão conferidos
+  useEffect(() => {
+    if (globalPercent === 100 && totalItems > 0 && !autoFinalizedRef.current && !showSuccessScreen) {
+      autoFinalizedRef.current = true;
+      handleFinalizeCarga();
+    }
+  }, [globalPercent, totalItems]);
 
   // --- TELA VERDE DE CONFERÊNCIA FINALIZADA ---
   if (showSuccessScreen) {
