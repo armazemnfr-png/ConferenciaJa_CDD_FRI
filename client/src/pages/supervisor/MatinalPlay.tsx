@@ -4,7 +4,7 @@ import { Link } from "wouter";
 
 const ROOMS = [
   { id: "corona", name: "Sala 1: Corona", fixedStart: "07:30" },
-  { id: "stella", name: "Sala 2: Stella", fixedStart: "06:45" },
+  { id: "stella", name: "Sala 2: Stella", fixedStart: "07:00" },
 ];
 
 export default function MatinalPlay() {
