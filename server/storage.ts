@@ -304,11 +304,11 @@ export class DatabaseStorage implements IStorage {
       Array.from(dayMaps).forEach((mapNumber: string) => {
         const conf = dayConfs.get(mapNumber) ?? confByMap.get(mapNumber);
         const { room } = resolveDriver(mapNumber, conf);
-        const roomKey = room ?? 'Sem Sala';
-        const cur = byRoomMap.get(roomKey) ?? { total: 0, conferenced: 0 };
+        if (!room) return;
+        const cur = byRoomMap.get(room) ?? { total: 0, conferenced: 0 };
         cur.total += 1;
         if ((dayConfs.get(mapNumber) ?? confByMap.get(mapNumber))?.status === 'completed') cur.conferenced += 1;
-        byRoomMap.set(roomKey, cur);
+        byRoomMap.set(room, cur);
       });
     });
     const byRoom = Array.from(byRoomMap.entries())
