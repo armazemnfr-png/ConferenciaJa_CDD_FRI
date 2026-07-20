@@ -77,6 +77,7 @@ export interface IStorage {
   bulkInsertWmsItems(items: InsertWmsItem[]): Promise<void>;
   bulkInsertPromaxData(items: any[]): Promise<void>;
   getPromaxByDriver(registration: string): Promise<PromaxData | undefined>;
+  getPromaxByMap(mapa: string): Promise<PromaxData | undefined>;
   getAllPromaxData(): Promise<PromaxData[]>;
   getPortariaData(): Promise<{ mapa: string; motorista: string; nome: string; sala: string; dtOper: string; hrOper: string; tipoMapa: string }[]>;
   bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void>;
@@ -687,6 +688,14 @@ export class DatabaseStorage implements IStorage {
     const [entry] = await db.select()
       .from(promaxData)
       .where(and(eq(promaxData.motorista, registration), sql`upper(trim(${promaxData.fase})) = 'CARREGADO'`))
+      .limit(1);
+    return entry;
+  }
+
+  async getPromaxByMap(mapa: string): Promise<PromaxData | undefined> {
+    const [entry] = await db.select()
+      .from(promaxData)
+      .where(and(eq(promaxData.mapa, mapa), sql`upper(trim(${promaxData.fase})) = 'CARREGADO'`))
       .limit(1);
     return entry;
   }

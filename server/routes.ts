@@ -554,12 +554,27 @@ export async function registerRoutes(
 
       let conference = await storage.getConferenceByMap(mapNumber);
       if (!conference) {
+        // Se não veio matrícula do formulário, busca no Promax CARREGADO pelo número do mapa
+        let resolvedDriverId = (driverCode && driverCode.trim() && driverCode.trim().toUpperCase() !== 'N/A')
+          ? driverCode.trim()
+          : null;
+        if (!resolvedDriverId) {
+          const promax = await storage.getPromaxByMap(mapNumber);
+          if (promax?.motorista) resolvedDriverId = promax.motorista.trim();
+        }
         conference = await storage.createConference({
           mapNumber,
-          driverId: driverCode || "N/A",
+          driverId: resolvedDriverId || "N/A",
           status: "in_progress",
           startTime: new Date()
         });
+      } else if (conference.driverId === "N/A" || !conference.driverId) {
+        // Conferência já existe com N/A: tenta preencher a matrícula pelo Promax
+        const promax = await storage.getPromaxByMap(mapNumber);
+        if (promax?.motorista) {
+          await storage.updateConference(conference.id, { driverId: promax.motorista.trim() });
+          conference = { ...conference, driverId: promax.motorista.trim() };
+        }
       }
 
       const formattedData = rawData.map((item: any) => ({
