@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { MessageSquareHeart, TrendingUp, CheckCircle2, Clock, XCircle, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { MessageSquareHeart, TrendingUp, CheckCircle2, Clock, XCircle, ChevronDown, ChevronUp, AlertTriangle, PenLine } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -33,13 +33,18 @@ function StatCard({ label, value, total, color, icon: Icon }: { label: string; v
 function EntryCard({ entry }: { entry: MetalogEntry }) {
   const [status, setStatus] = useState(entry.status);
   const [justification, setJustification] = useState(entry.blockerJustification ?? "");
+  const [actionTaken, setActionTaken] = useState(entry.actionTaken ?? "");
   const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const needsJustification = status === "nao_avancou";
-  const canSave = status !== entry.status || (needsJustification && justification.trim() !== (entry.blockerJustification ?? ""));
+
+  const hasChanges =
+    status !== entry.status ||
+    actionTaken.trim() !== (entry.actionTaken ?? "") ||
+    (needsJustification && justification.trim() !== (entry.blockerJustification ?? ""));
 
   async function handleSave() {
     if (needsJustification && !justification.trim()) {
@@ -51,10 +56,14 @@ function EntryCard({ entry }: { entry: MetalogEntry }) {
       const res = await fetch(`/api/metalog/${entry.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, blockerJustification: needsJustification ? justification.trim() : null }),
+        body: JSON.stringify({
+          status,
+          blockerJustification: needsJustification ? justification.trim() : null,
+          actionTaken: actionTaken.trim() || null,
+        }),
       });
       if (res.ok) {
-        toast({ title: "Status atualizado!" });
+        toast({ title: "Salvo com sucesso!" });
         queryClient.invalidateQueries({ queryKey: ["/api/metalog"] });
         queryClient.invalidateQueries({ queryKey: ["/api/metalog/stats"] });
       } else {
@@ -72,8 +81,9 @@ function EntryCard({ entry }: { entry: MetalogEntry }) {
   const statusInfo = STATUS_LABELS[entry.status] ?? STATUS_LABELS.em_andamento;
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-      <div className="p-4">
+    <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
+      {/* Cabeçalho do card */}
+      <div className="p-4 flex-1">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
             <p className="font-bold text-foreground">{entry.name}</p>
@@ -81,7 +91,7 @@ function EntryCard({ entry }: { entry: MetalogEntry }) {
               {entry.createdAt ? format(new Date(entry.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : "—"}
             </p>
           </div>
-          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusInfo.color}`}>
+          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border shrink-0 ${statusInfo.color}`}>
             <statusInfo.icon className="w-3 h-3" />
             {statusInfo.label}
           </span>
@@ -93,16 +103,24 @@ function EntryCard({ entry }: { entry: MetalogEntry }) {
           </span>
         </div>
 
+        {/* Relato do motorista - sempre visível resumido, expande para ver completo */}
+        <div className="bg-muted/40 rounded-xl p-3 mb-3 space-y-2">
+          <div>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1">Sugestão do motorista</p>
+            <p className="text-sm text-foreground line-clamp-2">{entry.solution}</p>
+          </div>
+        </div>
+
         <button
           onClick={() => setExpanded(v => !v)}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-1"
         >
           {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          {expanded ? "Ocultar detalhes" : "Ver relato completo"}
+          {expanded ? "Ocultar relato completo" : "Ver relato completo"}
         </button>
 
         {expanded && (
-          <div className="mt-3 space-y-3 border-t border-border pt-3">
+          <div className="mt-2 space-y-3 border-t border-border pt-3">
             <div>
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1">Por que não bate?</p>
               <p className="text-sm text-foreground bg-muted/40 rounded-xl p-3">{entry.reason}</p>
@@ -124,24 +142,44 @@ function EntryCard({ entry }: { entry: MetalogEntry }) {
         )}
       </div>
 
-      {/* Controle de Status */}
-      <div className="bg-muted/30 border-t border-border px-4 py-3 space-y-2">
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Aderência da Ação</p>
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(STATUS_LABELS).map(([key, val]) => (
-            <button
-              key={key}
-              onClick={() => setStatus(key)}
-              data-testid={`button-metalog-status-${key}-${entry.id}`}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                status === key
-                  ? val.color + " ring-2 ring-offset-1 ring-current"
-                  : "bg-background border-border text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {val.label}
-            </button>
-          ))}
+      {/* Área da gestão */}
+      <div className="bg-muted/30 border-t border-border px-4 py-3 space-y-3">
+
+        {/* Campo: O que foi feito */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <PenLine className="w-3.5 h-3.5 text-[#7c3aed]" />
+            O que foi feito com esta ação?
+          </p>
+          <textarea
+            value={actionTaken}
+            onChange={e => setActionTaken(e.target.value)}
+            placeholder="Descreva aqui o que a gestão fez a partir desta sugestão..."
+            data-testid={`textarea-metalog-action-${entry.id}`}
+            rows={2}
+            className="w-full px-3 py-2 text-sm rounded-lg border-2 border-[#7c3aed]/30 focus:border-[#7c3aed] focus:outline-none resize-none bg-white placeholder:text-muted-foreground/50 transition-all"
+          />
+        </div>
+
+        {/* Status da aderência */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Aderência da Ação</p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(STATUS_LABELS).map(([key, val]) => (
+              <button
+                key={key}
+                onClick={() => setStatus(key)}
+                data-testid={`button-metalog-status-${key}-${entry.id}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                  status === key
+                    ? val.color + " ring-2 ring-offset-1 ring-current"
+                    : "bg-background border-border text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {val.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {needsJustification && (
@@ -155,14 +193,14 @@ function EntryCard({ entry }: { entry: MetalogEntry }) {
           />
         )}
 
-        {canSave && (
+        {hasChanges && (
           <button
             onClick={handleSave}
             disabled={saving || (needsJustification && !justification.trim())}
             data-testid={`button-metalog-save-${entry.id}`}
             className="w-full py-2 bg-[#7c3aed] text-white text-sm font-bold rounded-lg hover:bg-[#6d28d9] disabled:opacity-50 transition-all"
           >
-            {saving ? "Salvando..." : "Salvar Status"}
+            {saving ? "Salvando..." : "Salvar"}
           </button>
         )}
       </div>
@@ -191,7 +229,7 @@ export default function AdminMetalog() {
             </div>
             <h1 className="text-3xl font-bold text-foreground">Gestão METALOG</h1>
           </div>
-          <p className="text-muted-foreground text-sm ml-13">Compilado de relatos e acompanhamento de aderência das ações</p>
+          <p className="text-muted-foreground text-sm">Compilado de relatos e acompanhamento de aderência das ações</p>
         </header>
 
         {/* Contadores de Aderência */}
@@ -201,27 +239,9 @@ export default function AdminMetalog() {
             Taxa de Aderência
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <StatCard
-              label="Em Andamento"
-              value={stats?.statusCounts.em_andamento ?? 0}
-              total={total}
-              color="border-amber-200 text-amber-900"
-              icon={Clock}
-            />
-            <StatCard
-              label="Concluída / Eficaz"
-              value={stats?.statusCounts.concluida ?? 0}
-              total={total}
-              color="border-green-200 text-green-900"
-              icon={CheckCircle2}
-            />
-            <StatCard
-              label="Não Avançou"
-              value={stats?.statusCounts.nao_avancou ?? 0}
-              total={total}
-              color="border-red-200 text-red-900"
-              icon={XCircle}
-            />
+            <StatCard label="Em Andamento" value={stats?.statusCounts.em_andamento ?? 0} total={total} color="border-amber-200 text-amber-900" icon={Clock} />
+            <StatCard label="Concluída / Eficaz" value={stats?.statusCounts.concluida ?? 0} total={total} color="border-green-200 text-green-900" icon={CheckCircle2} />
+            <StatCard label="Não Avançou" value={stats?.statusCounts.nao_avancou ?? 0} total={total} color="border-red-200 text-red-900" icon={XCircle} />
           </div>
 
           {total > 0 && (
@@ -252,11 +272,7 @@ export default function AdminMetalog() {
             </h2>
             <div className="bg-card rounded-2xl border border-border p-5">
               <ResponsiveContainer width="100%" height={Math.max(160, (stats?.kpiRanking.length ?? 1) * 44)}>
-                <BarChart
-                  data={stats?.kpiRanking}
-                  layout="vertical"
-                  margin={{ top: 0, right: 30, left: 8, bottom: 0 }}
-                >
+                <BarChart data={stats?.kpiRanking} layout="vertical" margin={{ top: 0, right: 30, left: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
                   <YAxis type="category" dataKey="kpi" width={170} tick={{ fontSize: 12 }} />
@@ -277,11 +293,9 @@ export default function AdminMetalog() {
 
         {/* Listagem de Relatos */}
         <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide">
-              Histórico de Relatos ({entries.length})
-            </h2>
-          </div>
+          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3">
+            Histórico de Relatos ({entries.length})
+          </h2>
 
           {isLoading ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground">

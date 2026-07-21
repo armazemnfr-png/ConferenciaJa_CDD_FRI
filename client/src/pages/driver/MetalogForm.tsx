@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { MessageSquareHeart, ArrowLeft, Send, CheckCircle2, Loader2, ChevronDown } from "lucide-react";
+import { MessageSquareHeart, ArrowLeft, Send, CheckCircle2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const KPI_OPTIONS = [
   "TML",
   "Devolução PDV",
   "Aderência ao Raio",
-  "Notificação > 2 minutos",
+  "Notificação > 2 min",
   "Tempo Interno",
   "Rating",
   "Jornada",
   "Caixa Viagem",
-  "TME (Tempo médio de entrega)",
+  "TME",
   "Outros",
 ];
 
@@ -102,7 +102,7 @@ export default function MetalogForm() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <form onSubmit={handleSubmit} className="p-6 space-y-6">
 
             {/* Pergunta 1 - Nome */}
             <div className="space-y-2">
@@ -121,26 +121,28 @@ export default function MetalogForm() {
               />
             </div>
 
-            {/* Pergunta 2 - KPI */}
-            <div className="space-y-2">
+            {/* Pergunta 2 - KPI em cards */}
+            <div className="space-y-3">
               <label className="text-sm font-bold text-foreground flex items-center gap-2">
                 <span className="w-6 h-6 bg-[#7c3aed] text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
                 Qual indicador (KPI) você não bate?
               </label>
-              <div className="relative">
-                <select
-                  value={kpi}
-                  onChange={e => setKpi(e.target.value)}
-                  data-testid="select-metalog-kpi"
-                  className="w-full px-4 py-3 rounded-xl border-2 border-border focus:border-[#7c3aed] focus:outline-none transition-all appearance-none bg-background"
-                  required
-                >
-                  <option value="">Selecione um indicador...</option>
-                  {KPI_OPTIONS.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <div className="grid grid-cols-2 gap-2">
+                {KPI_OPTIONS.map(opt => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => { setKpi(opt); if (opt !== "Outros") setKpiOther(""); }}
+                    data-testid={`card-kpi-${opt}`}
+                    className={`px-3 py-3 rounded-xl border-2 text-sm font-semibold text-left transition-all leading-tight ${
+                      kpi === opt
+                        ? "border-[#7c3aed] bg-[#7c3aed]/10 text-[#7c3aed] shadow-sm"
+                        : "border-border bg-background text-foreground hover:border-[#7c3aed]/40 hover:bg-[#7c3aed]/5"
+                    }`}
+                  >
+                    {opt === "TME" ? "TME\n(Tempo médio entrega)" : opt}
+                  </button>
+                ))}
               </div>
               {kpi === "Outros" && (
                 <input
@@ -149,7 +151,7 @@ export default function MetalogForm() {
                   onChange={e => setKpiOther(e.target.value)}
                   placeholder="Qual indicador?"
                   data-testid="input-metalog-kpi-other"
-                  className="w-full px-4 py-3 rounded-xl border-2 border-border focus:border-[#7c3aed] focus:outline-none transition-all mt-2"
+                  className="w-full px-4 py-3 rounded-xl border-2 border-[#7c3aed]/50 focus:border-[#7c3aed] focus:outline-none transition-all"
                 />
               )}
             </div>

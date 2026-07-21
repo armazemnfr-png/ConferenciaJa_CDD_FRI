@@ -956,10 +956,10 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(metalogEntries).orderBy(desc(metalogEntries.createdAt));
   }
 
-  async updateMetalogStatus(id: number, status: string, blockerJustification?: string | null): Promise<MetalogEntry | undefined> {
+  async updateMetalogStatus(id: number, status: string, blockerJustification?: string | null, actionTaken?: string | null): Promise<MetalogEntry | undefined> {
     const rows = await db
       .update(metalogEntries)
-      .set({ status, blockerJustification: blockerJustification ?? null })
+      .set({ status, blockerJustification: blockerJustification ?? null, actionTaken: actionTaken ?? null })
       .where(eq(metalogEntries.id, id))
       .returning();
     return rows[0];

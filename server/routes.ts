@@ -634,11 +634,11 @@ export async function registerRoutes(
       const { updateMetalogStatusSchema } = await import("@shared/schema");
       const parsed = updateMetalogStatusSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Dados inválidos" });
-      const { status, blockerJustification } = parsed.data;
+      const { status, blockerJustification, actionTaken } = parsed.data;
       if (status === "nao_avancou" && !blockerJustification) {
         return res.status(400).json({ message: "Justificativa obrigatória quando 'Não Avançou'." });
       }
-      const updated = await storage.updateMetalogStatus(id, status, blockerJustification);
+      const updated = await storage.updateMetalogStatus(id, status, blockerJustification, actionTaken);
       if (!updated) return res.status(404).json({ message: "Relato não encontrado." });
       res.json(updated);
     } catch (err) {
