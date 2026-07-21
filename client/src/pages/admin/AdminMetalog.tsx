@@ -271,22 +271,35 @@ export default function AdminMetalog() {
               Ranking — KPIs mais relatados
             </h2>
             <div className="bg-card rounded-2xl border border-border p-5">
-              <ResponsiveContainer width="100%" height={Math.max(160, (stats?.kpiRanking.length ?? 1) * 44)}>
-                <BarChart data={stats?.kpiRanking} layout="vertical" margin={{ top: 0, right: 30, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
-                  <YAxis type="category" dataKey="kpi" width={170} tick={{ fontSize: 12 }} />
-                  <Tooltip
-                    formatter={(v: number) => [`${v} relato${v !== 1 ? "s" : ""}`, "Quantidade"]}
-                    contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 13 }}
-                  />
-                  <Bar dataKey="count" radius={[0, 6, 6, 0]} label={{ position: "right", fontSize: 12 }}>
-                    {stats?.kpiRanking.map((_, i) => (
-                      <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {(() => {
+                const rankingTotal = stats?.kpiRanking.reduce((s, r) => s + r.count, 0) ?? 0;
+                const rankingData = stats?.kpiRanking.map(r => ({
+                  kpi: r.kpi,
+                  pct: rankingTotal > 0 ? Math.round((r.count / rankingTotal) * 100) : 0,
+                  count: r.count,
+                })) ?? [];
+                return (
+                  <ResponsiveContainer width="100%" height={Math.max(160, rankingData.length * 44)}>
+                    <BarChart data={rankingData} layout="vertical" margin={{ top: 0, right: 50, left: 8, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 12 }} />
+                      <YAxis type="category" dataKey="kpi" width={170} tick={{ fontSize: 12 }} />
+                      <Tooltip
+                        formatter={(v: number, _: string, props: any) => [
+                          `${v}% (${props.payload?.count} relato${props.payload?.count !== 1 ? "s" : ""})`,
+                          "Participação"
+                        ]}
+                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 13 }}
+                      />
+                      <Bar dataKey="pct" radius={[0, 6, 6, 0]} label={{ position: "right", fontSize: 12, formatter: (v: number) => `${v}%` }}>
+                        {rankingData.map((_, i) => (
+                          <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                );
+              })()}
             </div>
           </section>
         )}
