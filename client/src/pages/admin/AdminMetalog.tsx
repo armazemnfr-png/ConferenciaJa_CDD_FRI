@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { MessageSquareHeart, TrendingUp, CheckCircle2, Clock, XCircle, ChevronDown, ChevronUp, AlertTriangle, PenLine } from "lucide-react";
+import { MessageSquareHeart, TrendingUp, CheckCircle2, Clock, XCircle, AlertTriangle, PenLine, Save } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -30,17 +30,15 @@ function StatCard({ label, value, total, color, icon: Icon }: { label: string; v
   );
 }
 
-function EntryCard({ entry }: { entry: MetalogEntry }) {
+function EntryRow({ entry }: { entry: MetalogEntry }) {
   const [status, setStatus] = useState(entry.status);
   const [justification, setJustification] = useState(entry.blockerJustification ?? "");
   const [actionTaken, setActionTaken] = useState(entry.actionTaken ?? "");
-  const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const needsJustification = status === "nao_avancou";
-
   const hasChanges =
     status !== entry.status ||
     actionTaken.trim() !== (entry.actionTaken ?? "") ||
@@ -63,7 +61,7 @@ function EntryCard({ entry }: { entry: MetalogEntry }) {
         }),
       });
       if (res.ok) {
-        toast({ title: "Salvo com sucesso!" });
+        toast({ title: "Salvo!" });
         queryClient.invalidateQueries({ queryKey: ["/api/metalog"] });
         queryClient.invalidateQueries({ queryKey: ["/api/metalog/stats"] });
       } else {
@@ -81,98 +79,60 @@ function EntryCard({ entry }: { entry: MetalogEntry }) {
   const statusInfo = STATUS_LABELS[entry.status] ?? STATUS_LABELS.em_andamento;
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
-      {/* Cabeçalho do card */}
-      <div className="p-4 flex-1">
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div>
-            <p className="font-bold text-foreground">{entry.name}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {entry.createdAt ? format(new Date(entry.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : "—"}
-            </p>
-          </div>
-          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border shrink-0 ${statusInfo.color}`}>
+    <tr className="border-b border-border hover:bg-muted/20 transition-colors align-top">
+      {/* Data + Nome */}
+      <td className="px-4 py-3 min-w-[140px]">
+        <p className="font-semibold text-sm text-foreground">{entry.name}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {entry.createdAt ? format(new Date(entry.createdAt), "dd/MM/yy HH:mm", { locale: ptBR }) : "—"}
+        </p>
+      </td>
+
+      {/* KPI */}
+      <td className="px-4 py-3 min-w-[130px]">
+        <span className="inline-block bg-[#7c3aed]/10 text-[#7c3aed] border border-[#7c3aed]/20 px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap">
+          {kpiLabel}
+        </span>
+      </td>
+
+      {/* Por que não bate? */}
+      <td className="px-4 py-3 min-w-[200px] max-w-[260px]">
+        <p className="text-sm text-foreground leading-snug">{entry.reason}</p>
+      </td>
+
+      {/* Como resolve? */}
+      <td className="px-4 py-3 min-w-[200px] max-w-[260px]">
+        <p className="text-sm text-foreground leading-snug">{entry.solution}</p>
+      </td>
+
+      {/* O que foi feito (gestão) */}
+      <td className="px-4 py-3 min-w-[200px]">
+        <textarea
+          value={actionTaken}
+          onChange={e => setActionTaken(e.target.value)}
+          placeholder="O que foi feito..."
+          data-testid={`textarea-metalog-action-${entry.id}`}
+          rows={2}
+          className="w-full px-2.5 py-2 text-sm rounded-lg border-2 border-[#7c3aed]/25 focus:border-[#7c3aed] focus:outline-none resize-none bg-white placeholder:text-muted-foreground/40 transition-all min-w-[180px]"
+        />
+      </td>
+
+      {/* Status + Ações */}
+      <td className="px-4 py-3 min-w-[200px]">
+        <div className="space-y-2">
+          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusInfo.color}`}>
             <statusInfo.icon className="w-3 h-3" />
             {statusInfo.label}
           </span>
-        </div>
-
-        <div className="flex items-center gap-2 mb-3">
-          <span className="bg-[#7c3aed]/10 text-[#7c3aed] border border-[#7c3aed]/20 px-2.5 py-1 rounded-full text-xs font-bold">
-            {kpiLabel}
-          </span>
-        </div>
-
-        {/* Relato do motorista - sempre visível resumido, expande para ver completo */}
-        <div className="bg-muted/40 rounded-xl p-3 mb-3 space-y-2">
-          <div>
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1">Sugestão do motorista</p>
-            <p className="text-sm text-foreground line-clamp-2">{entry.solution}</p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => setExpanded(v => !v)}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-1"
-        >
-          {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          {expanded ? "Ocultar relato completo" : "Ver relato completo"}
-        </button>
-
-        {expanded && (
-          <div className="mt-2 space-y-3 border-t border-border pt-3">
-            <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1">Por que não bate?</p>
-              <p className="text-sm text-foreground bg-muted/40 rounded-xl p-3">{entry.reason}</p>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1">Como resolve?</p>
-              <p className="text-sm text-foreground bg-muted/40 rounded-xl p-3">{entry.solution}</p>
-            </div>
-            {entry.blockerJustification && (
-              <div>
-                <p className="text-xs font-bold text-red-600 uppercase tracking-wide mb-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  Justificativa do Bloqueio
-                </p>
-                <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl p-3">{entry.blockerJustification}</p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Área da gestão */}
-      <div className="bg-muted/30 border-t border-border px-4 py-3 space-y-3">
-
-        {/* Campo: O que foi feito */}
-        <div className="space-y-1.5">
-          <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-            <PenLine className="w-3.5 h-3.5 text-[#7c3aed]" />
-            O que foi feito com esta ação?
-          </p>
-          <textarea
-            value={actionTaken}
-            onChange={e => setActionTaken(e.target.value)}
-            placeholder="Descreva aqui o que a gestão fez a partir desta sugestão..."
-            data-testid={`textarea-metalog-action-${entry.id}`}
-            rows={2}
-            className="w-full px-3 py-2 text-sm rounded-lg border-2 border-[#7c3aed]/30 focus:border-[#7c3aed] focus:outline-none resize-none bg-white placeholder:text-muted-foreground/50 transition-all"
-          />
-        </div>
-
-        {/* Status da aderência */}
-        <div className="space-y-1.5">
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Aderência da Ação</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-1">
             {Object.entries(STATUS_LABELS).map(([key, val]) => (
               <button
                 key={key}
                 onClick={() => setStatus(key)}
                 data-testid={`button-metalog-status-${key}-${entry.id}`}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all text-left ${
                   status === key
-                    ? val.color + " ring-2 ring-offset-1 ring-current"
+                    ? val.color + " ring-1 ring-offset-1 ring-current"
                     : "bg-background border-border text-muted-foreground hover:bg-muted"
                 }`}
               >
@@ -180,31 +140,39 @@ function EntryCard({ entry }: { entry: MetalogEntry }) {
               </button>
             ))}
           </div>
+
+          {needsJustification && (
+            <textarea
+              value={justification}
+              onChange={e => setJustification(e.target.value)}
+              placeholder="Justificativa (obrigatório)..."
+              data-testid={`textarea-metalog-justification-${entry.id}`}
+              rows={2}
+              className="w-full px-2.5 py-2 text-xs rounded-lg border-2 border-red-300 focus:border-red-500 focus:outline-none resize-none bg-red-50 text-red-900 placeholder:text-red-400"
+            />
+          )}
+
+          {entry.blockerJustification && !needsJustification && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1 flex items-start gap-1">
+              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+              {entry.blockerJustification}
+            </p>
+          )}
+
+          {hasChanges && (
+            <button
+              onClick={handleSave}
+              disabled={saving || (needsJustification && !justification.trim())}
+              data-testid={`button-metalog-save-${entry.id}`}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 bg-[#7c3aed] text-white text-xs font-bold rounded-lg hover:bg-[#6d28d9] disabled:opacity-50 transition-all"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {saving ? "Salvando..." : "Salvar"}
+            </button>
+          )}
         </div>
-
-        {needsJustification && (
-          <textarea
-            value={justification}
-            onChange={e => setJustification(e.target.value)}
-            placeholder="Justificativa do bloqueio (obrigatório)..."
-            data-testid={`textarea-metalog-justification-${entry.id}`}
-            rows={2}
-            className="w-full px-3 py-2 text-sm rounded-lg border-2 border-red-300 focus:border-red-500 focus:outline-none resize-none bg-red-50 text-red-900 placeholder:text-red-400"
-          />
-        )}
-
-        {hasChanges && (
-          <button
-            onClick={handleSave}
-            disabled={saving || (needsJustification && !justification.trim())}
-            data-testid={`button-metalog-save-${entry.id}`}
-            className="w-full py-2 bg-[#7c3aed] text-white text-sm font-bold rounded-lg hover:bg-[#6d28d9] disabled:opacity-50 transition-all"
-          >
-            {saving ? "Salvando..." : "Salvar"}
-          </button>
-        )}
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 
@@ -304,7 +272,7 @@ export default function AdminMetalog() {
           </section>
         )}
 
-        {/* Listagem de Relatos */}
+        {/* Listagem de Relatos — tabela horizontal */}
         <section>
           <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3">
             Histórico de Relatos ({entries.length})
@@ -322,10 +290,29 @@ export default function AdminMetalog() {
               <p className="text-sm text-muted-foreground mt-1">Os motoristas enviam relatos pelo botão METALOG na tela deles.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {entries.map(entry => (
-                <EntryCard key={entry.id} entry={entry} />
-              ))}
+            <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-muted/50 border-b border-border">
+                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Nome / Data</th>
+                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">KPI</th>
+                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Por que não bate?</th>
+                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Como resolve?</th>
+                      <th className="px-4 py-3 text-xs font-bold text-[#7c3aed] uppercase tracking-wide whitespace-nowrap flex items-center gap-1">
+                        <PenLine className="w-3.5 h-3.5" />
+                        O que foi feito (gestão)
+                      </th>
+                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Aderência</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entries.map(entry => (
+                      <EntryRow key={entry.id} entry={entry} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </section>
