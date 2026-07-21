@@ -797,10 +797,18 @@ export class DatabaseStorage implements IStorage {
 
   async bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void> {
     if (items.length === 0) return;
+    // Deduplica por matrícula — mantém a primeira ocorrência
+    const seen = new Set<string>();
+    const unique = items.filter(item => {
+      const key = normalizeReg(item.registration);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     await db.execute(sql`TRUNCATE TABLE driver_base RESTART IDENTITY CASCADE`);
     const chunkSize = 500;
-    for (let i = 0; i < items.length; i += chunkSize) {
-      await db.insert(driverBase).values(items.slice(i, i + chunkSize));
+    for (let i = 0; i < unique.length; i += chunkSize) {
+      await db.insert(driverBase).values(unique.slice(i, i + chunkSize));
     }
   }
 
