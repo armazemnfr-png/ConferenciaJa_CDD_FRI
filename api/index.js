@@ -40784,7 +40784,8 @@ var init_schema2 = __esm({
       checkedQuantity: integer("checked_quantity"),
       partialCountReason: text("partial_count_reason"),
       hasDamage: boolean("has_damage").default(false),
-      damageDescription: text("damage_description")
+      damageDescription: text("damage_description"),
+      uploadDate: text("upload_date")
     });
     promaxData = pgTable("promax_data", {
       id: serial("id").primaryKey(),
@@ -40943,6 +40944,8 @@ function tmlParseDt(dtOper) {
 }
 function tmlTimeToMin(t) {
   if (!t) return 0;
+  const dtMatch = t.match(/(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (dtMatch) return parseInt(dtMatch[1]) * 60 + parseInt(dtMatch[2]);
   const p = t.split(":");
   return parseInt(p[0] || "0") * 60 + parseInt(p[1] || "0");
 }
@@ -40958,64 +40961,163 @@ function normalizeReg(s) {
   return isNaN(num) ? trimmed : String(num);
 }
 var DatabaseStorage = class {
-  async getAdherenceReport() {
-    const wmsRows = await db.selectDistinct({ mapNumber: wmsItems.mapNumber }).from(wmsItems);
-    const expectedMaps = new Set(wmsRows.map((r) => r.mapNumber.trim()));
+  async getAdherenceReport(startDate, endDate) {
+    const todayBrasilia = () => {
+      const now = /* @__PURE__ */ new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset() - 180);
+      return now.toISOString().slice(0, 10);
+    };
+    const start = startDate || todayBrasilia();
+    const end = endDate || start;
+    const isSingleDay = start === end;
+    const wmsWithDate = await db.selectDistinct({
+      mapNumber: wmsItems.mapNumber,
+      uploadDate: wmsItems.uploadDate
+    }).from(wmsItems).where(
+      and(
+        sql`${wmsItems.uploadDate} IS NOT NULL`,
+        sql`${wmsItems.uploadDate} >= ${start}`,
+        sql`${wmsItems.uploadDate} <= ${end}`
+      )
+    );
+    const mapsByDay = /* @__PURE__ */ new Map();
+    for (const row of wmsWithDate) {
+      const d = row.uploadDate;
+      if (!mapsByDay.has(d)) mapsByDay.set(d, /* @__PURE__ */ new Set());
+      mapsByDay.get(d).add(row.mapNumber.trim());
+    }
+    if (mapsByDay.size === 0 && isSingleDay) {
+      const legacy = await db.selectDistinct({ mapNumber: wmsItems.mapNumber }).from(wmsItems);
+      if (legacy.length > 0) {
+        mapsByDay.set(start, new Set(legacy.map((r) => r.mapNumber.trim())));
+      }
+    }
+    const allExpectedMaps = /* @__PURE__ */ new Set();
+    Array.from(mapsByDay.values()).forEach((s) => s.forEach((m) => allExpectedMaps.add(m)));
+    const startTs = /* @__PURE__ */ new Date(start + "T00:00:00");
+    const endTs = /* @__PURE__ */ new Date(end + "T00:00:00");
+    endTs.setDate(endTs.getDate() + 1);
     const allConfs = await db.select().from(conferences);
+    const rangeConfs = allConfs.filter((c) => {
+      const ts = c.startTime ?? c.createdAt;
+      if (!ts) return false;
+      return ts >= startTs && ts < endTs;
+    });
     const statusPriority = { completed: 3, in_progress: 2, pending: 1 };
     const confByMap = /* @__PURE__ */ new Map();
-    for (const c of allConfs) {
+    for (const c of rangeConfs) {
       const key = c.mapNumber.trim();
       const existing = confByMap.get(key);
       if (!existing || (statusPriority[c.status] ?? 0) > (statusPriority[existing.status] ?? 0)) {
         confByMap.set(key, c);
       }
     }
-    for (const mapNumber of confByMap.keys()) {
-      expectedMaps.add(mapNumber);
+    const confByDayMap = /* @__PURE__ */ new Map();
+    for (const c of rangeConfs) {
+      const ts = c.startTime ?? c.createdAt;
+      if (!ts) continue;
+      const dayStr = ts.toISOString().slice(0, 10);
+      if (!confByDayMap.has(dayStr)) confByDayMap.set(dayStr, /* @__PURE__ */ new Map());
+      const dayConfs = confByDayMap.get(dayStr);
+      const key = c.mapNumber.trim();
+      const existing = dayConfs.get(key);
+      if (!existing || (statusPriority[c.status] ?? 0) > (statusPriority[existing.status] ?? 0)) {
+        dayConfs.set(key, c);
+      }
     }
     const allDrivers = await db.select().from(driverBase);
     const nameByReg = /* @__PURE__ */ new Map();
-    allDrivers.forEach((d) => nameByReg.set(normalizeReg(d.registration), d.name));
-    const allPromax = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista }).from(promaxData);
-    const promaxByMap = /* @__PURE__ */ new Map();
-    allPromax.forEach((p) => {
-      if (p.mapa) promaxByMap.set(p.mapa.trim(), p.motorista ?? "");
+    const roomByReg = /* @__PURE__ */ new Map();
+    allDrivers.forEach((d) => {
+      nameByReg.set(normalizeReg(d.registration), d.name);
+      if (d.room) roomByReg.set(normalizeReg(d.registration), d.room.trim());
     });
-    const maps = [];
-    for (const mapNumber of Array.from(expectedMaps)) {
-      const conf = confByMap.get(mapNumber);
-      let status;
-      if (!conf) {
-        status = "not_started";
-      } else if (conf.status === "completed") {
-        status = "completed";
-      } else {
-        status = "in_progress";
+    const allPromax = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista, fase: promaxData.fase }).from(promaxData);
+    const promaxRegByMap = /* @__PURE__ */ new Map();
+    allPromax.forEach((p) => {
+      if (p.mapa && p.motorista && p.fase?.toUpperCase().trim() === "CARREGADO") {
+        promaxRegByMap.set(p.mapa.trim(), p.motorista.trim());
       }
-      const driverId = conf?.driverId ?? null;
+    });
+    const resolveDriver = (mapNumber, conf) => {
+      let driverId = conf?.driverId ?? null;
       let driverName = null;
-      if (driverId) {
-        driverName = nameByReg.get(normalizeReg(driverId)) ?? null;
-      }
+      let resolvedReg = driverId && driverId.trim().toUpperCase() !== "N/A" ? driverId : null;
+      if (resolvedReg) driverName = nameByReg.get(normalizeReg(resolvedReg)) ?? null;
       if (!driverName) {
-        const promaxName = promaxByMap.get(mapNumber);
-        if (promaxName) driverName = promaxName;
+        const promaxReg = promaxRegByMap.get(mapNumber);
+        if (promaxReg) {
+          driverName = nameByReg.get(normalizeReg(promaxReg)) ?? null;
+          resolvedReg = promaxReg;
+          if (!driverId || driverId.trim().toUpperCase() === "N/A") driverId = promaxReg;
+        }
       }
-      maps.push({
-        mapNumber,
-        status,
-        driverId,
-        driverName,
-        completedAt: conf?.endTime ? conf.endTime.toISOString() : null
+      const room = resolvedReg ? roomByReg.get(normalizeReg(resolvedReg)) ?? null : null;
+      return { driverId, driverName, room };
+    };
+    const byDay = [];
+    const sortedDays = Array.from(mapsByDay.keys()).sort();
+    for (const day of sortedDays) {
+      const dayMaps = mapsByDay.get(day);
+      const dayConfs = confByDayMap.get(day) ?? /* @__PURE__ */ new Map();
+      let dayConferenced = 0;
+      Array.from(dayMaps).forEach((mapNumber) => {
+        const conf = dayConfs.get(mapNumber);
+        if (conf?.status === "completed") dayConferenced++;
+      });
+      const total = dayMaps.size;
+      byDay.push({
+        date: day,
+        totalMaps: total,
+        conferencedMaps: dayConferenced,
+        adherencePercentage: total > 0 ? Math.round(dayConferenced / total * 100) : 0
       });
     }
-    const order = { not_started: 0, in_progress: 1, completed: 2 };
-    maps.sort((a, b) => order[a.status] - order[b.status] || a.mapNumber.localeCompare(b.mapNumber));
-    const conferencedMaps = maps.filter((m) => m.status === "completed").length;
-    const totalMaps = maps.length;
+    const maps = [];
+    if (isSingleDay) {
+      const dayMaps = mapsByDay.get(start) ?? /* @__PURE__ */ new Set();
+      for (const mapNumber of Array.from(dayMaps)) {
+        const conf = confByMap.get(mapNumber);
+        let status;
+        if (!conf) status = "not_started";
+        else if (conf.status === "completed") status = "completed";
+        else status = "in_progress";
+        const { driverId, driverName, room } = resolveDriver(mapNumber, conf);
+        maps.push({
+          mapNumber,
+          status,
+          driverId,
+          driverName,
+          room,
+          completedAt: conf?.endTime ? conf.endTime.toISOString() : null
+        });
+      }
+      const order = { not_started: 0, in_progress: 1, completed: 2 };
+      maps.sort((a, b) => order[a.status] - order[b.status] || a.mapNumber.localeCompare(b.mapNumber));
+    }
+    const totalMaps = byDay.reduce((s, d) => s + d.totalMaps, 0);
+    const conferencedMaps = byDay.reduce((s, d) => s + d.conferencedMaps, 0);
     const adherencePercentage = totalMaps > 0 ? Math.round(conferencedMaps / totalMaps * 100) : 0;
-    return { totalMaps, conferencedMaps, adherencePercentage, maps };
+    const byRoomMap = /* @__PURE__ */ new Map();
+    Array.from(mapsByDay.entries()).forEach(([day, dayMaps]) => {
+      const dayConfs = confByDayMap.get(day) ?? /* @__PURE__ */ new Map();
+      Array.from(dayMaps).forEach((mapNumber) => {
+        const conf = dayConfs.get(mapNumber) ?? confByMap.get(mapNumber);
+        const { room } = resolveDriver(mapNumber, conf);
+        if (!room) return;
+        const cur = byRoomMap.get(room) ?? { total: 0, conferenced: 0 };
+        cur.total += 1;
+        if ((dayConfs.get(mapNumber) ?? confByMap.get(mapNumber))?.status === "completed") cur.conferenced += 1;
+        byRoomMap.set(room, cur);
+      });
+    });
+    const byRoom = Array.from(byRoomMap.entries()).map(([room, { total, conferenced }]) => ({
+      room,
+      totalMaps: total,
+      conferencedMaps: conferenced,
+      adherencePercentage: total > 0 ? Math.round(conferenced / total * 100) : 0
+    })).sort((a, b) => a.room.localeCompare(b.room));
+    return { totalMaps, conferencedMaps, adherencePercentage, maps, byRoom, byDay };
   }
   async getDriverRanking(filters) {
     const allDrivers = await db.select().from(driverBase);
@@ -41064,7 +41166,21 @@ var DatabaseStorage = class {
     await db.insert(ginfoChecklist).values(items);
   }
   async getGinfoChecklist() {
-    return await db.select().from(ginfoChecklist).orderBy(desc(ginfoChecklist.importedAt));
+    const rows = await db.select().from(ginfoChecklist).orderBy(desc(ginfoChecklist.importedAt));
+    const allDrivers = await db.select().from(driverBase);
+    const nameByReg = /* @__PURE__ */ new Map();
+    allDrivers.forEach((d) => nameByReg.set(normalizeReg(d.registration), d.name));
+    const allPromax = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista }).from(promaxData);
+    const regByMap = /* @__PURE__ */ new Map();
+    allPromax.forEach((p) => {
+      if (p.mapa && p.motorista) regByMap.set(p.mapa.trim(), p.motorista.trim());
+    });
+    return rows.map((r) => {
+      if (r.realizadoPor && r.realizadoPor.trim()) return r;
+      const reg = regByMap.get(r.mapa.trim());
+      const name = reg ? nameByReg.get(normalizeReg(reg)) ?? null : null;
+      return name ? { ...r, realizadoPor: name } : r;
+    });
   }
   async getTmlData() {
     const portariaList = await this.getPortariaData();
@@ -41072,6 +41188,15 @@ var DatabaseStorage = class {
     const matinalAll = await db.select().from(matinals);
     const ginfoByMapa = /* @__PURE__ */ new Map();
     [...ginfoAll].reverse().forEach((g) => ginfoByMapa.set(g.mapa.trim().toUpperCase(), g));
+    const allConfs = await db.select().from(conferences);
+    const confByMap = /* @__PURE__ */ new Map();
+    for (const c of allConfs) {
+      const key = c.mapNumber.trim().toUpperCase();
+      const existing = confByMap.get(key);
+      if (!existing || c.status === "completed" && existing.status !== "completed") {
+        confByMap.set(key, c);
+      }
+    }
     const results = [];
     for (const portaria of portariaList) {
       const ginfo = ginfoByMapa.get(portaria.mapa.trim().toUpperCase());
@@ -41082,14 +41207,34 @@ var DatabaseStorage = class {
         return tmlSalaMatch(m.roomName, sala) && md.getFullYear() === portariaDate.getFullYear() && md.getMonth() === portariaDate.getMonth() && md.getDate() === portariaDate.getDate();
       }) : void 0;
       const matinalMin = matchingMatinal?.durationMinutes ?? 0;
-      const matinalEndMin = matchingMatinal && matchingMatinal.actualEndTime ? new Date(matchingMatinal.actualEndTime).getHours() * 60 + new Date(matchingMatinal.actualEndTime).getMinutes() : 0;
+      const matinalEndMin = matchingMatinal && matchingMatinal.actualEndTime ? new Date(matchingMatinal.actualEndTime).getUTCHours() * 60 + new Date(matchingMatinal.actualEndTime).getUTCMinutes() - 180 : 0;
       const checklistStartMin = ginfo?.hrInicio ? tmlTimeToMin(ginfo.hrInicio) : 0;
       const checklistEndMin = ginfo?.hrFinal ? tmlTimeToMin(ginfo.hrFinal) : 0;
       const checklistMin = checklistEndMin > 0 && checklistStartMin > 0 ? Math.max(0, checklistEndMin - checklistStartMin) : ginfo?.tempo ? tmlTimeToMin(ginfo.tempo) : 0;
+      const matPatioOverlap = checklistStartMin > 0 && matinalEndMin > 0 && checklistStartMin < matinalEndMin;
       const matinalPatioMin = checklistStartMin > 0 && matinalEndMin > 0 ? Math.max(0, checklistStartMin - matinalEndMin) : 0;
       const portariaMin = portaria.hrOper ? tmlTimeToMin(portaria.hrOper) : 0;
-      const effectiveEnd = checklistEndMin || checklistStartMin + checklistMin;
-      const patioPortariaMin = portariaMin > 0 && effectiveEnd > 0 ? Math.max(0, portariaMin - effectiveEnd) : 0;
+      const conf = confByMap.get(portaria.mapa.trim().toUpperCase());
+      let conferenceMin = 0;
+      let confStartLocalMin = 0;
+      let confStartLocalSec = 0;
+      let confEndLocalMin = 0;
+      if (conf?.startTime && conf?.endTime) {
+        const startDt = new Date(conf.startTime);
+        const endDt = new Date(conf.endTime);
+        confStartLocalMin = startDt.getUTCHours() * 60 + startDt.getUTCMinutes() - 180;
+        confStartLocalSec = startDt.getUTCHours() * 3600 + startDt.getUTCMinutes() * 60 + startDt.getUTCSeconds() - 180 * 60;
+        confEndLocalMin = endDt.getUTCHours() * 60 + endDt.getUTCMinutes() - 180;
+        const diffMin = (endDt.getTime() - startDt.getTime()) / 6e4;
+        if (diffMin > 0 && diffMin < 600) conferenceMin = Math.round(diffMin * 10) / 10;
+      }
+      const effectiveChecklistEnd = checklistEndMin || checklistStartMin + checklistMin;
+      const effectiveChecklistEndSec = effectiveChecklistEnd * 60;
+      const ckConfOverlap = confStartLocalSec > 0 && effectiveChecklistEndSec > 0 && confStartLocalSec < effectiveChecklistEndSec;
+      const checklistConferenceSec = confStartLocalSec > 0 && effectiveChecklistEndSec > 0 ? Math.max(0, confStartLocalSec - effectiveChecklistEndSec) : 0;
+      const checklistConferenceMin = checklistConferenceSec / 60;
+      const referenceEnd = confEndLocalMin > 0 ? confEndLocalMin : effectiveChecklistEnd;
+      const patioPortariaMin = portariaMin > 0 && referenceEnd > 0 ? Math.max(0, portariaMin - referenceEnd) : 0;
       results.push({
         mapa: portaria.mapa,
         motorista: portaria.motorista,
@@ -41101,9 +41246,14 @@ var DatabaseStorage = class {
         hrFinal: ginfo?.hrFinal || "",
         matinalMin,
         matinalPatioMin,
+        matPatioOverlap,
         checklistMin,
+        checklistConferenceMin,
+        checklistConferenceSec,
+        ckConfOverlap,
+        conferenceMin,
         patioPortariaMin,
-        tmlMin: matinalMin + matinalPatioMin + checklistMin + patioPortariaMin
+        tmlMin: matinalMin + matinalPatioMin + checklistMin + checklistConferenceMin + conferenceMin + patioPortariaMin
       });
     }
     return results;
@@ -41135,7 +41285,23 @@ var DatabaseStorage = class {
       endDate.setHours(23, 59, 59, 999);
       conditions.push(sql`${conferences.startTime} <= ${endDate}`);
     }
-    return await db.select().from(conferences).where(conditions.length > 0 ? and(...conditions) : void 0).orderBy(desc(conferences.startTime));
+    const rows = await db.select().from(conferences).where(conditions.length > 0 ? and(...conditions) : void 0).orderBy(desc(conferences.startTime));
+    const missing = rows.some((r) => !r.driverId || r.driverId.trim().toUpperCase() === "N/A");
+    if (missing) {
+      const allPromax = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista, fase: promaxData.fase }).from(promaxData);
+      const promaxRegByMap = /* @__PURE__ */ new Map();
+      allPromax.forEach((p) => {
+        if (p.mapa && p.motorista && p.fase?.toUpperCase().trim() === "CARREGADO") {
+          promaxRegByMap.set(p.mapa.trim().toUpperCase(), p.motorista.trim());
+        }
+      });
+      return rows.map((r) => {
+        if (r.driverId && r.driverId.trim().toUpperCase() !== "N/A") return r;
+        const promaxReg = promaxRegByMap.get(r.mapNumber.trim().toUpperCase());
+        return promaxReg ? { ...r, driverId: promaxReg } : r;
+      });
+    }
+    return rows;
   }
   async getConference(id) {
     const [conference] = await db.select().from(conferences).where(eq(conferences.id, id));
@@ -41182,14 +41348,38 @@ var DatabaseStorage = class {
   }
   async bulkInsertWmsItems(items) {
     if (items.length === 0) return;
-    await db.execute(sql`TRUNCATE TABLE wms_items RESTART IDENTITY CASCADE`);
+    const parseBrDate = (s) => {
+      if (!s) return null;
+      const m = s.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      if (!m) return null;
+      return `${m[3]}-${m[2]}-${m[1]}`;
+    };
+    const todayBrasilia = () => {
+      const now = /* @__PURE__ */ new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset() - 180);
+      return now.toISOString().slice(0, 10);
+    };
+    const fallbackDate = todayBrasilia();
+    const byDate = /* @__PURE__ */ new Map();
+    for (const item of items) {
+      const d = parseBrDate(item.deliveryDate) ?? fallbackDate;
+      if (!byDate.has(d)) byDate.set(d, []);
+      byDate.get(d).push({ ...item, uploadDate: d });
+    }
     const chunkSize = 200;
-    for (let i = 0; i < items.length; i += chunkSize) {
-      await db.insert(wmsItems).values(items.slice(i, i + chunkSize));
+    for (const [date2, group] of Array.from(byDate.entries())) {
+      await db.delete(wmsItems).where(eq(wmsItems.uploadDate, date2));
+      for (let i = 0; i < group.length; i += chunkSize) {
+        await db.insert(wmsItems).values(group.slice(i, i + chunkSize));
+      }
     }
   }
   async getPromaxByDriver(registration) {
     const [entry] = await db.select().from(promaxData).where(and(eq(promaxData.motorista, registration), sql`upper(trim(${promaxData.fase})) = 'CARREGADO'`)).limit(1);
+    return entry;
+  }
+  async getPromaxByMap(mapa) {
+    const [entry] = await db.select().from(promaxData).where(and(eq(promaxData.mapa, mapa), sql`upper(trim(${promaxData.fase})) = 'CARREGADO'`)).limit(1);
     return entry;
   }
   async bulkInsertPromaxData(items) {
@@ -41255,6 +41445,18 @@ var DatabaseStorage = class {
   async getAllDrivers() {
     return await db.select().from(driverBase).orderBy(driverBase.name);
   }
+  async getAllWmsItems() {
+    return await db.select().from(wmsItems).orderBy(wmsItems.mapNumber, wmsItems.bayNumber);
+  }
+  async getAllPromaxData() {
+    return await db.select().from(promaxData).orderBy(promaxData.mapa);
+  }
+  async getAllGinfoRows() {
+    return await db.select().from(ginfoChecklist).orderBy(ginfoChecklist.mapa);
+  }
+  async getAllKpiResults() {
+    return await db.select().from(kpiResults).orderBy(kpiResults.nome);
+  }
   async bulkInsertDriverBase(items) {
     if (items.length === 0) return;
     await db.execute(sql`TRUNCATE TABLE driver_base RESTART IDENTITY CASCADE`);
@@ -41313,13 +41515,20 @@ var DatabaseStorage = class {
   async getDashboardMetrics(filters) {
     const filteredConferences = await this.getConferences(filters);
     const completed = filteredConferences.filter((c) => c.status === "completed");
+    const allItems = await db.select().from(wmsItems);
+    const itemsByMap = /* @__PURE__ */ new Map();
+    for (const item of allItems) {
+      const key = item.mapNumber.trim().toUpperCase();
+      if (!itemsByMap.has(key)) itemsByMap.set(key, []);
+      itemsByMap.get(key).push(item);
+    }
     let totalItems = 0;
     let totalDivergences = 0;
     let totalDamages = 0;
     let totalMinutes = 0;
     let validTimeCount = 0;
     for (const conf of completed) {
-      const items = await this.getWmsItemsByMap(conf.mapNumber);
+      const items = itemsByMap.get(conf.mapNumber.trim().toUpperCase()) ?? [];
       totalItems += items.length;
       totalDivergences += items.filter((i) => i.isChecked && i.checkedQuantity !== null && i.checkedQuantity !== i.expectedQuantity).length;
       totalDamages += items.filter((i) => i.hasDamage).length;
@@ -41353,6 +41562,17 @@ var DatabaseStorage = class {
   async getKpiResultByCpf(cpf) {
     const rows = await db.select().from(kpiResults).where(eq(kpiResults.cpf, cpf)).limit(1);
     return rows[0];
+  }
+  async getPromaxMapaLookup() {
+    const rows = await db.select({ mapa: promaxData.mapa, motorista: promaxData.motorista, dtOper: promaxData.dtOper }).from(promaxData).where(eq(promaxData.fase, "CARREGADO"));
+    const lookup = /* @__PURE__ */ new Map();
+    rows.forEach((r) => {
+      if (!r.mapa || !r.motorista) return;
+      const reg = normalizeReg(r.motorista);
+      lookup.set(reg, r.mapa);
+      if (r.dtOper) lookup.set(`${reg}|${r.dtOper.trim()}`, r.mapa);
+    });
+    return lookup;
   }
 };
 var storage = new DatabaseStorage();
@@ -41554,9 +41774,29 @@ async function registerRoutes(httpServer2, app2) {
       if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: "Nenhum item enviado." });
       }
-      await storage.bulkInsertGinfoChecklist(items);
-      await storage.saveUploadMeta("GINFO", fileName || "desconhecido", items.length);
-      res.json({ success: true, count: items.length });
+      const needsLookup = items.some((item) => !item.mapa && item.matricula);
+      let mapaLookup = null;
+      if (needsLookup) {
+        mapaLookup = await storage.getPromaxMapaLookup();
+      }
+      const normalizeReg2 = (s) => {
+        const n = parseInt((s || "").trim(), 10);
+        return isNaN(n) ? (s || "").trim() : String(n);
+      };
+      const enriched = items.map((item) => {
+        if (!item.mapa && item.matricula && mapaLookup) {
+          const reg = normalizeReg2(item.matricula);
+          const found = mapaLookup.get(`${reg}|${(item.data || "").trim()}`) || mapaLookup.get(reg);
+          if (found) return { ...item, mapa: found };
+        }
+        return item;
+      }).filter((item) => item.mapa && item.mapa !== "undefined");
+      if (enriched.length === 0) {
+        return res.status(400).json({ message: "Nenhum item com mapa encontrado. Verifique se o arquivo PW (Promax) foi importado antes do GINFO." });
+      }
+      await storage.bulkInsertGinfoChecklist(enriched);
+      await storage.saveUploadMeta("GINFO", fileName || "desconhecido", enriched.length);
+      res.json({ success: true, count: enriched.length });
     } catch (err) {
       console.error("Erro ao importar Ginfo:", err);
       res.status(500).json({ message: "Erro ao importar checklist Ginfo." });
@@ -41590,7 +41830,9 @@ async function registerRoutes(httpServer2, app2) {
   });
   app2.get("/api/dashboard/adherencia", async (req, res) => {
     try {
-      const data = await storage.getAdherenceReport();
+      const startDate = req.query.startDate || req.query.date;
+      const endDate = req.query.endDate;
+      const data = await storage.getAdherenceReport(startDate, endDate);
       res.json(data);
     } catch (err) {
       console.error("Erro ao calcular ader\xEAncia:", err);
@@ -41819,6 +42061,111 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Erro ao buscar KPI." });
     }
   });
+  function toCSV(rows, columns) {
+    const header = columns.map((c) => `"${c.header}"`).join(";");
+    const lines = rows.map(
+      (row) => columns.map((c) => {
+        const val = row[c.key] ?? "";
+        return `"${String(val).replace(/"/g, '""')}"`;
+      }).join(";")
+    );
+    return [header, ...lines].join("\r\n");
+  }
+  app2.get("/api/download/wms", async (_req, res) => {
+    try {
+      const rows = await storage.getAllWmsItems();
+      const csv = toCSV(rows, [
+        { key: "warehouseCode", header: "C\xF3digo do Armaz\xE9m" },
+        { key: "mapNumber", header: "Mapas" },
+        { key: "bayNumber", header: "Palete" },
+        { key: "box", header: "Caixa" },
+        { key: "sequence", header: "Sequ\xEAncia" },
+        { key: "status", header: "Status" },
+        { key: "sku", header: "C\xF3digo do item" },
+        { key: "description", header: "Item" },
+        { key: "expectedQuantity", header: "Qtd" },
+        { key: "subtype", header: "Subtipo" },
+        { key: "category", header: "Categoria" },
+        { key: "unitOfMeasure", header: "Unidade" },
+        { key: "origin", header: "Origem" },
+        { key: "deliveryDate", header: "Data de entrega" },
+        { key: "plate", header: "Placa" }
+      ]);
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", 'attachment; filename="wms_export.csv"');
+      res.send("\uFEFF" + csv);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao exportar WMS" });
+    }
+  });
+  app2.get("/api/download/pw", async (_req, res) => {
+    try {
+      const rows = await storage.getAllPromaxData();
+      const csv = toCSV(rows, [
+        { key: "mapa", header: "Mapa" },
+        { key: "fase", header: "Fase" },
+        { key: "motorista", header: "Motorista" },
+        { key: "veiculo", header: "Veiculo" },
+        { key: "placa", header: "Placa" },
+        { key: "dtOper", header: "DtOper" },
+        { key: "hrOper", header: "HrOper" },
+        { key: "tipoMapa", header: "TipoMapa" }
+      ]);
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", 'attachment; filename="promax_export.csv"');
+      res.send("\uFEFF" + csv);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao exportar PW" });
+    }
+  });
+  app2.get("/api/download/mot", async (_req, res) => {
+    try {
+      const rows = await storage.getAllDrivers();
+      const csv = toCSV(rows, [
+        { key: "registration", header: "Matr\xEDcula" },
+        { key: "name", header: "Colaborador" },
+        { key: "room", header: "Sala" }
+      ]);
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", 'attachment; filename="motoristas_export.csv"');
+      res.send("\uFEFF" + csv);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao exportar Motoristas" });
+    }
+  });
+  app2.get("/api/download/ginfo", async (_req, res) => {
+    try {
+      const rows = await storage.getAllGinfoRows();
+      const csv = toCSV(rows, [
+        { key: "realizadoPor", header: "REALIZADO POR" },
+        { key: "equipe", header: "EQUIPE" },
+        { key: "mapa", header: "MAPA" },
+        { key: "tempo", header: "TEMPO" },
+        { key: "hrInicio", header: "HR INICIO" },
+        { key: "hrFinal", header: "HR FINAL" }
+      ]);
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", 'attachment; filename="ginfo_export.csv"');
+      res.send("\uFEFF" + csv);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao exportar GINFO" });
+    }
+  });
+  app2.get("/api/download/kpi", async (_req, res) => {
+    try {
+      const rows = await storage.getAllKpiResults();
+      const csv = toCSV(rows, [
+        { key: "cpf", header: "CPF" },
+        { key: "nome", header: "Nome" },
+        { key: "mensagem", header: "Mensagem" }
+      ]);
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", 'attachment; filename="kpi_export.csv"');
+      res.send("\uFEFF" + csv);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao exportar KPI" });
+    }
+  });
   app2.delete("/api/conferences/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     try {
@@ -41838,12 +42185,23 @@ async function registerRoutes(httpServer2, app2) {
       }
       let conference = await storage.getConferenceByMap(mapNumber);
       if (!conference) {
+        let resolvedDriverId = driverCode && driverCode.trim() && driverCode.trim().toUpperCase() !== "N/A" ? driverCode.trim() : null;
+        if (!resolvedDriverId) {
+          const promax = await storage.getPromaxByMap(mapNumber);
+          if (promax?.motorista) resolvedDriverId = promax.motorista.trim();
+        }
         conference = await storage.createConference({
           mapNumber,
-          driverId: driverCode || "N/A",
+          driverId: resolvedDriverId || "N/A",
           status: "in_progress",
           startTime: /* @__PURE__ */ new Date()
         });
+      } else if (conference.driverId === "N/A" || !conference.driverId) {
+        const promax = await storage.getPromaxByMap(mapNumber);
+        if (promax?.motorista) {
+          await storage.updateConference(conference.id, { driverId: promax.motorista.trim() });
+          conference = { ...conference, driverId: promax.motorista.trim() };
+        }
       }
       const formattedData = rawData.map((item) => ({
         id: item.id,
