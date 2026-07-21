@@ -797,10 +797,10 @@ export class DatabaseStorage implements IStorage {
 
   async bulkInsertDriverBase(items: InsertDriverBase[]): Promise<void> {
     if (items.length === 0) return;
-    // Deduplica por matrícula — mantém a primeira ocorrência
+    // Deduplica por nome — garante que motoristas e ajudantes com mesma matrícula entrem os dois
     const seen = new Set<string>();
     const unique = items.filter(item => {
-      const key = normalizeReg(item.registration);
+      const key = item.name.trim().toUpperCase();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
