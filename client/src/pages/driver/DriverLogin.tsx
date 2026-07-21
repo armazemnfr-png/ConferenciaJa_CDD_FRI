@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Truck, ArrowRight, Loader2, MapPin, UserSquare2, BarChart2 } from "lucide-react";
+import { Truck, ArrowRight, Loader2, MapPin, UserSquare2, BarChart2, MessageSquareHeart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function DriverLogin() {
@@ -142,6 +142,19 @@ export default function DriverLogin() {
           >
             <BarChart2 className="w-5 h-5" />
             Ver resultados KPIs
+          </button>
+
+          {/* Botão METALOG — chamativo */}
+          <button
+            type="button"
+            onClick={() => setLocation("/driver/metalog")}
+            data-testid="button-metalog"
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#7c3aed] to-[#4f46e5] hover:from-[#6d28d9] hover:to-[#4338ca] text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-purple-500/30 transition-all relative overflow-hidden group"
+          >
+            <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <MessageSquareHeart className="w-5 h-5" />
+            <span>METALOG</span>
+            <span className="text-xs font-normal opacity-80 ml-1">— Comente seu resultado</span>
           </button>
 
           <div className="text-center">

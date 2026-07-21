@@ -597,5 +597,54 @@ export async function registerRoutes(
     }
   });
 
+  // --- METALOG ---
+  app.post("/api/metalog", async (req: Request, res: Response) => {
+    try {
+      const { insertMetalogEntrySchema } = await import("@shared/schema");
+      const parsed = insertMetalogEntrySchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Dados inválidos", errors: parsed.error.issues });
+      const entry = await storage.createMetalogEntry(parsed.data);
+      res.json(entry);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao salvar relato." });
+    }
+  });
+
+  app.get("/api/metalog", async (_req: Request, res: Response) => {
+    try {
+      const entries = await storage.getMetalogEntries();
+      res.json(entries);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao buscar relatos." });
+    }
+  });
+
+  app.get("/api/metalog/stats", async (_req: Request, res: Response) => {
+    try {
+      const stats = await storage.getMetalogStats();
+      res.json(stats);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao calcular estatísticas." });
+    }
+  });
+
+  app.patch("/api/metalog/:id/status", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { updateMetalogStatusSchema } = await import("@shared/schema");
+      const parsed = updateMetalogStatusSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Dados inválidos" });
+      const { status, blockerJustification } = parsed.data;
+      if (status === "nao_avancou" && !blockerJustification) {
+        return res.status(400).json({ message: "Justificativa obrigatória quando 'Não Avançou'." });
+      }
+      const updated = await storage.updateMetalogStatus(id, status, blockerJustification);
+      if (!updated) return res.status(404).json({ message: "Relato não encontrado." });
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao atualizar status." });
+    }
+  });
+
   return httpServer;
 }

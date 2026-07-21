@@ -104,6 +104,27 @@ export const kpiResults = pgTable("kpi_results", {
   importedAt: timestamp("imported_at").defaultNow(),
 });
 
+export const metalogEntries = pgTable("metalog_entries", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  kpi: text("kpi").notNull(),
+  kpiOther: text("kpi_other"),
+  reason: text("reason").notNull(),
+  solution: text("solution").notNull(),
+  status: text("status").notNull().default("em_andamento"),
+  blockerJustification: text("blocker_justification"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMetalogEntrySchema = createInsertSchema(metalogEntries).omit({ id: true, createdAt: true });
+export type MetalogEntry = typeof metalogEntries.$inferSelect;
+export type InsertMetalogEntry = z.infer<typeof insertMetalogEntrySchema>;
+
+export const updateMetalogStatusSchema = z.object({
+  status: z.enum(["em_andamento", "concluida", "nao_avancou"]),
+  blockerJustification: z.string().nullable().optional(),
+});
+
 export const insertKpiResultSchema = createInsertSchema(kpiResults).omit({ id: true, importedAt: true });
 export type KpiResult = typeof kpiResults.$inferSelect;
 export type InsertKpiResult = z.infer<typeof insertKpiResultSchema>;

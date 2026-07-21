@@ -15,6 +15,8 @@ import DriverLogin from "@/pages/driver/DriverLogin";
 import ConferenceBays from "@/pages/driver/ConferenceBays";
 import BayItemsView from "@/pages/driver/BayItemsView";
 import DriverKpi from "@/pages/driver/DriverKpi";
+import MetalogForm from "@/pages/driver/MetalogForm";
+import AdminMetalog from "@/pages/admin/AdminMetalog";
 
 // Roteiro do Admin (Gestão)
 import Dashboard from "@/pages/admin/Dashboard";
@@ -38,6 +40,7 @@ function Router() {
       {/* Fluxo do Motorista */}
       <Route path="/driver/login" component={DriverLogin} />
       <Route path="/driver/kpi" component={DriverKpi} />
+      <Route path="/driver/metalog" component={MetalogForm} />
       <Route path="/driver/bays/:mapNumber" component={ConferenceBays} />
       <Route path="/driver/conference/:mapNumber/:bayNumber" component={BayItemsView} />
 
@@ -53,6 +56,7 @@ function Router() {
       <Route path="/admin/ginfo" component={AdminGinfo} />
       <Route path="/admin/portaria" component={AdminPortaria} />
       <Route path="/admin/tml" component={AdminTml} />
+      <Route path="/admin/metalog" component={AdminMetalog} />
 
       {/* Rota 404 - Caso o usuário digite algo inexistente */}
       <Route component={NotFound} />

@@ -8,6 +8,7 @@ import {
   ginfoChecklist,
   uploadMeta,
   kpiResults,
+  metalogEntries,
   type Conference,
   type WmsItem,
   type PromaxData,
@@ -25,7 +26,9 @@ import {
   type InsertKpiResult,
   type UpdateWmsItemRequest,
   type DashboardMetrics,
-  type TmlRecord
+  type TmlRecord,
+  type MetalogEntry,
+  type InsertMetalogEntry,
 } from "@shared/schema";
 import { eq, sql, and, desc } from "drizzle-orm";
 
@@ -937,11 +940,48 @@ export class DatabaseStorage implements IStorage {
     rows.forEach(r => {
       if (!r.mapa || !r.motorista) return;
       const reg = normalizeReg(r.motorista);
-      // Indexa por matrícula simples (último mapa vence para mesma mat.) e por mat.|data para match preciso
       lookup.set(reg, r.mapa);
       if (r.dtOper) lookup.set(`${reg}|${r.dtOper.trim()}`, r.mapa);
     });
     return lookup;
+  }
+
+  // --- METALOG ---
+  async createMetalogEntry(data: InsertMetalogEntry): Promise<MetalogEntry> {
+    const rows = await db.insert(metalogEntries).values(data).returning();
+    return rows[0];
+  }
+
+  async getMetalogEntries(): Promise<MetalogEntry[]> {
+    return db.select().from(metalogEntries).orderBy(desc(metalogEntries.createdAt));
+  }
+
+  async updateMetalogStatus(id: number, status: string, blockerJustification?: string | null): Promise<MetalogEntry | undefined> {
+    const rows = await db
+      .update(metalogEntries)
+      .set({ status, blockerJustification: blockerJustification ?? null })
+      .where(eq(metalogEntries.id, id))
+      .returning();
+    return rows[0];
+  }
+
+  async getMetalogStats(): Promise<{ kpiRanking: { kpi: string; count: number }[]; statusCounts: { em_andamento: number; concluida: number; nao_avancou: number } }> {
+    const entries = await db.select().from(metalogEntries);
+    const kpiMap = new Map<string, number>();
+    for (const e of entries) {
+      const label = e.kpi === 'Outros' && e.kpiOther ? `Outros: ${e.kpiOther}` : e.kpi;
+      kpiMap.set(label, (kpiMap.get(label) ?? 0) + 1);
+    }
+    const kpiRanking = Array.from(kpiMap.entries())
+      .map(([kpi, count]) => ({ kpi, count }))
+      .sort((a, b) => b.count - a.count);
+    const statusCounts = { em_andamento: 0, concluida: 0, nao_avancou: 0 };
+    for (const e of entries) {
+      if (e.status === 'concluida') statusCounts.concluida++;
+      else if (e.status === 'nao_avancou') statusCounts.nao_avancou++;
+      else statusCounts.em_andamento++;
+    }
+    return { kpiRanking, statusCounts };
   }
 }
 
