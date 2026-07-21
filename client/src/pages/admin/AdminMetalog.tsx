@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { MessageSquareHeart, TrendingUp, CheckCircle2, Clock, XCircle, AlertTriangle, PenLine, Save } from "lucide-react";
+import { MessageSquareHeart, TrendingUp, CheckCircle2, Clock, XCircle, AlertTriangle, PenLine, Save, Users, UserCheck, UserX, Search } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -182,6 +182,23 @@ export default function AdminMetalog() {
     kpiRanking: { kpi: string; count: number }[];
     statusCounts: { em_andamento: number; concluida: number; nao_avancou: number };
   }>({ queryKey: ["/api/metalog/stats"] });
+  const { data: allDrivers = [] } = useQuery<{ name: string }[]>({ queryKey: ["/api/drivers"] });
+
+  const [monitorSearch, setMonitorSearch] = useState("");
+
+  // Nomes únicos que já comentaram (normalizado para comparação)
+  const commentedNames = new Set(
+    entries.map(e => e.name.trim().toUpperCase())
+  );
+
+  // Filtrar colaboradores por busca
+  const driversFiltered = allDrivers.filter(d =>
+    monitorSearch.trim() === "" ||
+    d.name.toLowerCase().includes(monitorSearch.toLowerCase())
+  );
+
+  const commented = driversFiltered.filter(d => commentedNames.has(d.name.trim().toUpperCase()));
+  const notCommented = driversFiltered.filter(d => !commentedNames.has(d.name.trim().toUpperCase()));
 
   const total = (stats?.statusCounts.em_andamento ?? 0) + (stats?.statusCounts.concluida ?? 0) + (stats?.statusCounts.nao_avancou ?? 0);
   const pctConcluida = total > 0 ? Math.round(((stats?.statusCounts.concluida ?? 0) / total) * 100) : 0;
@@ -199,6 +216,105 @@ export default function AdminMetalog() {
           </div>
           <p className="text-muted-foreground text-sm">Compilado de relatos e acompanhamento de aderência das ações</p>
         </header>
+
+        {/* Monitoramento de Participação */}
+        <section>
+          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            Monitoramento de Participação
+          </h2>
+
+          {/* Barra de progresso geral */}
+          {allDrivers.length > 0 && (
+            <div className="bg-card rounded-2xl border border-border p-5 mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-foreground">Colaboradores que já comentaram</p>
+                <p className="text-2xl font-bold text-[#7c3aed]">
+                  {commentedNames.size}/{allDrivers.length}
+                  <span className="text-sm font-normal text-muted-foreground ml-1">
+                    ({allDrivers.length > 0 ? Math.round((commentedNames.size / allDrivers.length) * 100) : 0}%)
+                  </span>
+                </p>
+              </div>
+              <div className="w-full h-3 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-[#7c3aed] transition-all rounded-full"
+                  style={{ width: `${allDrivers.length > 0 ? (commentedNames.size / allDrivers.length) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Campo de busca */}
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={monitorSearch}
+              onChange={e => setMonitorSearch(e.target.value)}
+              placeholder="Buscar colaborador..."
+              data-testid="input-monitor-search"
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-card text-sm focus:outline-none focus:border-[#7c3aed] transition-all"
+            />
+          </div>
+
+          {/* Duas colunas: comentaram / não comentaram */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Não comentaram */}
+            <div className="bg-card rounded-2xl border border-red-200 overflow-hidden">
+              <div className="bg-red-50 px-4 py-3 border-b border-red-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserX className="w-4 h-4 text-red-500" />
+                  <span className="text-sm font-bold text-red-700">Ainda não comentaram</span>
+                </div>
+                <span className="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1 rounded-full border border-red-200">
+                  {notCommented.length}
+                </span>
+              </div>
+              <ul className="max-h-64 overflow-y-auto divide-y divide-border">
+                {notCommented.length === 0 ? (
+                  <li className="px-4 py-6 text-sm text-muted-foreground text-center">
+                    {monitorSearch ? "Nenhum resultado" : "Todos comentaram! 🎉"}
+                  </li>
+                ) : (
+                  notCommented.map(d => (
+                    <li key={d.name} className="px-4 py-2.5 text-sm text-foreground flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                      {d.name}
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+
+            {/* Comentaram */}
+            <div className="bg-card rounded-2xl border border-green-200 overflow-hidden">
+              <div className="bg-green-50 px-4 py-3 border-b border-green-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-bold text-green-700">Já comentaram</span>
+                </div>
+                <span className="bg-green-100 text-green-700 text-xs font-bold px-2.5 py-1 rounded-full border border-green-200">
+                  {commented.length}
+                </span>
+              </div>
+              <ul className="max-h-64 overflow-y-auto divide-y divide-border">
+                {commented.length === 0 ? (
+                  <li className="px-4 py-6 text-sm text-muted-foreground text-center">
+                    Nenhum ainda
+                  </li>
+                ) : (
+                  commented.map(d => (
+                    <li key={d.name} className="px-4 py-2.5 text-sm text-foreground flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                      {d.name}
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          </div>
+        </section>
 
         {/* Contadores de Aderência */}
         <section>
