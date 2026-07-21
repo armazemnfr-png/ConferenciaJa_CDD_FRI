@@ -27,11 +27,13 @@ export default function MetalogForm() {
   const [solution, setSolution] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [attempted, setAttempted] = useState(false);
 
   const isValid = name.trim() && kpi && (kpi !== "Outros" || kpiOther.trim()) && reason.trim() && solution.trim();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setAttempted(true);
     if (!isValid) return;
     setSubmitting(true);
     try {
@@ -108,7 +110,7 @@ export default function MetalogForm() {
             <div className="space-y-2">
               <label className="text-sm font-bold text-foreground flex items-center gap-2">
                 <span className="w-6 h-6 bg-[#7c3aed] text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>
-                Nome
+                Nome <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -125,9 +127,9 @@ export default function MetalogForm() {
             <div className="space-y-3">
               <label className="text-sm font-bold text-foreground flex items-center gap-2">
                 <span className="w-6 h-6 bg-[#7c3aed] text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
-                Qual indicador (KPI) você não bate?
+                Qual indicador (KPI) você não bate? <span className="text-red-500">*</span>
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className={`grid grid-cols-2 gap-2 rounded-xl p-1 transition-all ${attempted && !kpi ? "ring-2 ring-red-400 ring-offset-1 bg-red-50/50" : ""}`}>
                 {KPI_OPTIONS.map(opt => (
                   <button
                     key={opt}
@@ -144,6 +146,9 @@ export default function MetalogForm() {
                   </button>
                 ))}
               </div>
+              {attempted && !kpi && (
+                <p className="text-xs text-red-500 font-medium">Selecione um indicador</p>
+              )}
               {kpi === "Outros" && (
                 <input
                   type="text"
@@ -160,7 +165,7 @@ export default function MetalogForm() {
             <div className="space-y-2">
               <label className="text-sm font-bold text-foreground flex items-center gap-2">
                 <span className="w-6 h-6 bg-[#7c3aed] text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</span>
-                Por que você acha que não bate?
+                Por que você acha que não bate? <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={reason}
@@ -177,7 +182,7 @@ export default function MetalogForm() {
             <div className="space-y-2">
               <label className="text-sm font-bold text-foreground flex items-center gap-2">
                 <span className="w-6 h-6 bg-[#7c3aed] text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">4</span>
-                Como você acha que resolve isso?
+                Como você acha que resolve isso? <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={solution}
