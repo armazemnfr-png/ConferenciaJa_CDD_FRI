@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { MessageSquareHeart, ArrowLeft, Send, CheckCircle2, Loader2 } from "lucide-react";
+import { MessageSquareHeart, ArrowLeft, Send, CheckCircle2, Loader2, ChevronDown, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const KPI_OPTIONS = [
@@ -21,6 +21,11 @@ export default function MetalogForm() {
   const { toast } = useToast();
 
   const [name, setName] = useState("");
+  const [nameSearch, setNameSearch] = useState("");
+  const [nameOpen, setNameOpen] = useState(false);
+  const [drivers, setDrivers] = useState<{ name: string }[]>([]);
+  const nameRef = useRef<HTMLDivElement>(null);
+
   const [kpi, setKpi] = useState("");
   const [kpiOther, setKpiOther] = useState("");
   const [reason, setReason] = useState("");
@@ -28,6 +33,30 @@ export default function MetalogForm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [attempted, setAttempted] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/drivers")
+      .then(r => r.json())
+      .then((data: { name: string }[]) => {
+        const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+        setDrivers(sorted);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (nameRef.current && !nameRef.current.contains(e.target as Node)) {
+        setNameOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const filteredDrivers = nameSearch.trim()
+    ? drivers.filter(d => d.name.toLowerCase().includes(nameSearch.toLowerCase()))
+    : drivers;
 
   const isValid = name.trim() && kpi && (kpi !== "Outros" || kpiOther.trim()) && reason.trim() && solution.trim();
 
@@ -91,7 +120,7 @@ export default function MetalogForm() {
   return (
     <div className="min-h-screen bg-muted/30 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        <div className="bg-card rounded-3xl shadow-xl border border-border overflow-hidden">
+        <div className="bg-card rounded-3xl shadow-xl border border-border">
 
           {/* Cabeçalho */}
           <div className="bg-gradient-to-br from-[#7c3aed] to-[#4f46e5] px-8 py-8 text-center text-white">
@@ -106,21 +135,79 @@ export default function MetalogForm() {
 
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
 
-            {/* Pergunta 1 - Nome */}
-            <div className="space-y-2">
+            {/* Pergunta 1 - Nome (combobox) */}
+            <div className="space-y-2 relative" ref={nameRef}>
               <label className="text-sm font-bold text-foreground flex items-center gap-2">
                 <span className="w-6 h-6 bg-[#7c3aed] text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>
                 Nome <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Seu nome completo"
-                data-testid="input-metalog-name"
-                className="w-full px-4 py-3 rounded-xl border-2 border-border focus:border-[#7c3aed] focus:outline-none transition-all"
-                required
-              />
+
+              {/* Botão que mostra o selecionado ou placeholder */}
+              <button
+                type="button"
+                data-testid="button-metalog-name-open"
+                onClick={() => { setNameOpen(v => !v); setNameSearch(""); }}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all text-left ${
+                  attempted && !name
+                    ? "border-red-400 bg-red-50"
+                    : name
+                    ? "border-[#7c3aed] bg-[#7c3aed]/5"
+                    : "border-border bg-background"
+                }`}
+              >
+                <span className={name ? "text-foreground font-medium text-sm" : "text-muted-foreground text-sm"}>
+                  {name || "Selecione seu nome..."}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${nameOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {attempted && !name && (
+                <p className="text-xs text-red-500 font-medium">Selecione seu nome</p>
+              )}
+
+              {/* Dropdown */}
+              {nameOpen && (
+                <div className="absolute z-50 w-full max-w-[calc(100vw-2rem)] bg-white rounded-xl border-2 border-[#7c3aed]/30 shadow-xl overflow-hidden mt-1">
+                  {/* Campo de busca */}
+                  <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30">
+                    <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <input
+                      autoFocus
+                      type="text"
+                      value={nameSearch}
+                      onChange={e => setNameSearch(e.target.value)}
+                      placeholder="Buscar nome..."
+                      data-testid="input-metalog-name-search"
+                      className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+                    />
+                  </div>
+                  {/* Lista */}
+                  <ul className="max-h-56 overflow-y-auto">
+                    {filteredDrivers.length === 0 ? (
+                      <li className="px-4 py-3 text-sm text-muted-foreground text-center">Nenhum nome encontrado</li>
+                    ) : (
+                      filteredDrivers.map(d => (
+                        <li key={d.name}>
+                          <button
+                            type="button"
+                            data-testid={`option-metalog-name-${d.name}`}
+                            onClick={() => {
+                              setName(d.name);
+                              setNameOpen(false);
+                              setNameSearch("");
+                            }}
+                            className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#7c3aed]/10 transition-colors ${
+                              name === d.name ? "bg-[#7c3aed]/10 text-[#7c3aed] font-semibold" : "text-foreground"
+                            }`}
+                          >
+                            {d.name}
+                          </button>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Pergunta 2 - KPI em cards */}
