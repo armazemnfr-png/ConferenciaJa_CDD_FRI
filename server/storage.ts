@@ -705,7 +705,9 @@ export class DatabaseStorage implements IStorage {
 
   async bulkInsertPromaxData(items: any[]): Promise<void> {
     if (items.length === 0) return;
-    await db.execute(sql`TRUNCATE TABLE promax_data RESTART IDENTITY CASCADE`);
+    // NÃO faz TRUNCATE — acumula histórico.
+    // Deduplicação: apaga apenas os registros com mesmo (mapa, fase, dtOper) do novo lote,
+    // preservando tudo o que não está no upload atual.
     const CHUNK = 50;
     const toInsert: any[] = [];
     for (const item of items) {
@@ -719,6 +721,7 @@ export class DatabaseStorage implements IStorage {
           mapa,
           motorista: matricula,
           fase: "CARREGADO",
+          dtOper: String(item.dtOper || item.DtOper || item['Dt Oper'] || ""),
           veiculo: String(item.veiculo || item.Veículo || ""),
           placa: String(item.placa || item.Placa || ""),
         });
@@ -727,14 +730,36 @@ export class DatabaseStorage implements IStorage {
           mapa,
           motorista: matricula || "",
           fase: "SAIDA CDD/FAB",
-          hrOper: String(item.hrOper || item.HrOper || ""),
-          dtOper: String(item.dtOper || item.DtOper || ""),
+          hrOper: String(item.hrOper || item.HrOper || item['Hr Oper'] || ""),
+          dtOper: String(item.dtOper || item.DtOper || item['Dt Oper'] || ""),
           tipoMapa: String(item.tipoMapa || item.TipoMapa || item['Tipo Mapa'] || ""),
           veiculo: String(item.veiculo || item.Veiculo || ""),
           placa: String(item.placa || item.Placa || ""),
         });
       }
     }
+
+    if (toInsert.length === 0) return;
+
+    // Apaga somente os registros que serão substituídos (mesmo mapa+fase+dtOper)
+    // Agrupa por (mapa, fase, dtOper) e deleta em lotes
+    const keys = toInsert.map(r => ({ mapa: r.mapa, fase: r.fase, dtOper: r.dtOper || "" }));
+    for (let i = 0; i < keys.length; i += CHUNK) {
+      const batch = keys.slice(i, i + CHUNK);
+      for (const k of batch) {
+        await db.delete(promaxData).where(
+          and(
+            eq(promaxData.mapa, k.mapa),
+            sql`upper(trim(${promaxData.fase})) = ${k.fase}`,
+            k.dtOper
+              ? eq(promaxData.dtOper, k.dtOper)
+              : sql`(${promaxData.dtOper} is null or ${promaxData.dtOper} = '')`,
+          )
+        );
+      }
+    }
+
+    // Insere os novos registros
     for (let i = 0; i < toInsert.length; i += CHUNK) {
       await db.insert(promaxData).values(toInsert.slice(i, i + CHUNK));
     }
