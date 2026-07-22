@@ -40725,17 +40725,20 @@ __export(schema_exports, {
   insertGinfoChecklistSchema: () => insertGinfoChecklistSchema,
   insertKpiResultSchema: () => insertKpiResultSchema,
   insertMatinalSchema: () => insertMatinalSchema,
+  insertMetalogEntrySchema: () => insertMetalogEntrySchema,
   insertPromaxDataSchema: () => insertPromaxDataSchema,
   insertUploadMetaSchema: () => insertUploadMetaSchema,
   insertWmsItemSchema: () => insertWmsItemSchema,
   kpiResults: () => kpiResults,
   matinals: () => matinals,
+  metalogEntries: () => metalogEntries,
   promaxData: () => promaxData,
+  updateMetalogStatusSchema: () => updateMetalogStatusSchema,
   updateWmsItemSchema: () => updateWmsItemSchema,
   uploadMeta: () => uploadMeta,
   wmsItems: () => wmsItems
 });
-var conferences, matinals, wmsItems, promaxData, driverBase, ginfoChecklist, kpiResults, insertKpiResultSchema, uploadMeta, insertUploadMetaSchema, insertConferenceSchema, insertWmsItemSchema, insertPromaxDataSchema, insertDriverBaseSchema, insertGinfoChecklistSchema, insertMatinalSchema, updateWmsItemSchema;
+var conferences, matinals, wmsItems, promaxData, driverBase, ginfoChecklist, kpiResults, metalogEntries, insertMetalogEntrySchema, updateMetalogStatusSchema, insertKpiResultSchema, uploadMeta, insertUploadMetaSchema, insertConferenceSchema, insertWmsItemSchema, insertPromaxDataSchema, insertDriverBaseSchema, insertGinfoChecklistSchema, insertMatinalSchema, updateWmsItemSchema;
 var init_schema2 = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -40837,6 +40840,24 @@ var init_schema2 = __esm({
       mensagem: text("mensagem").notNull(),
       nome: text("nome"),
       importedAt: timestamp("imported_at").defaultNow()
+    });
+    metalogEntries = pgTable("metalog_entries", {
+      id: serial("id").primaryKey(),
+      name: text("name").notNull(),
+      kpi: text("kpi").notNull(),
+      kpiOther: text("kpi_other"),
+      reason: text("reason").notNull(),
+      solution: text("solution").notNull(),
+      status: text("status").notNull().default("em_andamento"),
+      blockerJustification: text("blocker_justification"),
+      actionTaken: text("action_taken"),
+      createdAt: timestamp("created_at").defaultNow()
+    });
+    insertMetalogEntrySchema = createInsertSchema(metalogEntries).omit({ id: true, createdAt: true });
+    updateMetalogStatusSchema = z.object({
+      status: z.enum(["em_andamento", "concluida", "nao_avancou"]),
+      blockerJustification: z.string().nullable().optional(),
+      actionTaken: z.string().nullable().optional()
     });
     insertKpiResultSchema = createInsertSchema(kpiResults).omit({ id: true, importedAt: true });
     uploadMeta = pgTable("upload_meta", {
@@ -41104,11 +41125,11 @@ var DatabaseStorage = class {
       Array.from(dayMaps).forEach((mapNumber) => {
         const conf = dayConfs.get(mapNumber) ?? confByMap.get(mapNumber);
         const { room } = resolveDriver(mapNumber, conf);
-        if (!room) return;
-        const cur = byRoomMap.get(room) ?? { total: 0, conferenced: 0 };
+        const roomKey = room ?? "Sem Sala";
+        const cur = byRoomMap.get(roomKey) ?? { total: 0, conferenced: 0 };
         cur.total += 1;
         if ((dayConfs.get(mapNumber) ?? confByMap.get(mapNumber))?.status === "completed") cur.conferenced += 1;
-        byRoomMap.set(room, cur);
+        byRoomMap.set(roomKey, cur);
       });
     });
     const byRoom = Array.from(byRoomMap.entries()).map(([room, { total, conferenced }]) => ({
@@ -41459,10 +41480,17 @@ var DatabaseStorage = class {
   }
   async bulkInsertDriverBase(items) {
     if (items.length === 0) return;
+    const seen = /* @__PURE__ */ new Set();
+    const unique = items.filter((item) => {
+      const key = item.name.trim().toUpperCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     await db.execute(sql`TRUNCATE TABLE driver_base RESTART IDENTITY CASCADE`);
     const chunkSize = 500;
-    for (let i = 0; i < items.length; i += chunkSize) {
-      await db.insert(driverBase).values(items.slice(i, i + chunkSize));
+    for (let i = 0; i < unique.length; i += chunkSize) {
+      await db.insert(driverBase).values(unique.slice(i, i + chunkSize));
     }
   }
   async getDriversWithoutRoom(filters) {
@@ -41573,6 +41601,34 @@ var DatabaseStorage = class {
       if (r.dtOper) lookup.set(`${reg}|${r.dtOper.trim()}`, r.mapa);
     });
     return lookup;
+  }
+  // --- METALOG ---
+  async createMetalogEntry(data) {
+    const rows = await db.insert(metalogEntries).values(data).returning();
+    return rows[0];
+  }
+  async getMetalogEntries() {
+    return db.select().from(metalogEntries).orderBy(desc(metalogEntries.createdAt));
+  }
+  async updateMetalogStatus(id, status, blockerJustification, actionTaken) {
+    const rows = await db.update(metalogEntries).set({ status, blockerJustification: blockerJustification ?? null, actionTaken: actionTaken ?? null }).where(eq(metalogEntries.id, id)).returning();
+    return rows[0];
+  }
+  async getMetalogStats() {
+    const entries = await db.select().from(metalogEntries);
+    const kpiMap = /* @__PURE__ */ new Map();
+    for (const e of entries) {
+      const label = e.kpi === "Outros" && e.kpiOther ? `Outros: ${e.kpiOther}` : e.kpi;
+      kpiMap.set(label, (kpiMap.get(label) ?? 0) + 1);
+    }
+    const kpiRanking = Array.from(kpiMap.entries()).map(([kpi, count]) => ({ kpi, count })).sort((a, b) => b.count - a.count);
+    const statusCounts = { em_andamento: 0, concluida: 0, nao_avancou: 0 };
+    for (const e of entries) {
+      if (e.status === "concluida") statusCounts.concluida++;
+      else if (e.status === "nao_avancou") statusCounts.nao_avancou++;
+      else statusCounts.em_andamento++;
+    }
+    return { kpiRanking, statusCounts };
   }
 };
 var storage = new DatabaseStorage();
@@ -42219,6 +42275,50 @@ async function registerRoutes(httpServer2, app2) {
       res.json(formattedData);
     } catch (err) {
       res.status(500).json({ message: "Erro no servidor ao carregar itens." });
+    }
+  });
+  app2.post("/api/metalog", async (req, res) => {
+    try {
+      const { insertMetalogEntrySchema: insertMetalogEntrySchema2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const parsed = insertMetalogEntrySchema2.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Dados inv\xE1lidos", errors: parsed.error.issues });
+      const entry = await storage.createMetalogEntry(parsed.data);
+      res.json(entry);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao salvar relato." });
+    }
+  });
+  app2.get("/api/metalog", async (_req, res) => {
+    try {
+      const entries = await storage.getMetalogEntries();
+      res.json(entries);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao buscar relatos." });
+    }
+  });
+  app2.get("/api/metalog/stats", async (_req, res) => {
+    try {
+      const stats = await storage.getMetalogStats();
+      res.json(stats);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao calcular estat\xEDsticas." });
+    }
+  });
+  app2.patch("/api/metalog/:id/status", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { updateMetalogStatusSchema: updateMetalogStatusSchema2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const parsed = updateMetalogStatusSchema2.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Dados inv\xE1lidos" });
+      const { status, blockerJustification, actionTaken } = parsed.data;
+      if (status === "nao_avancou" && !blockerJustification) {
+        return res.status(400).json({ message: "Justificativa obrigat\xF3ria quando 'N\xE3o Avan\xE7ou'." });
+      }
+      const updated = await storage.updateMetalogStatus(id, status, blockerJustification, actionTaken);
+      if (!updated) return res.status(404).json({ message: "Relato n\xE3o encontrado." });
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao atualizar status." });
     }
   });
   return httpServer2;

@@ -301,18 +301,18 @@ export class DatabaseStorage implements IStorage {
     const conferencedMaps = byDay.reduce((s, d) => s + d.conferencedMaps, 0);
     const adherencePercentage = totalMaps > 0 ? Math.round((conferencedMaps / totalMaps) * 100) : 0;
 
-    // 8. Aderência por sala (agregada no período)
+    // 8. Aderência por sala (agregada no período) — mapas sem sala vão para "Sem Sala"
     const byRoomMap = new Map<string, { total: number; conferenced: number }>();
     Array.from(mapsByDay.entries()).forEach(([day, dayMaps]) => {
       const dayConfs = confByDayMap.get(day) ?? new Map();
       Array.from(dayMaps).forEach((mapNumber: string) => {
         const conf = dayConfs.get(mapNumber) ?? confByMap.get(mapNumber);
         const { room } = resolveDriver(mapNumber, conf);
-        if (!room) return;
-        const cur = byRoomMap.get(room) ?? { total: 0, conferenced: 0 };
+        const roomKey = room ?? 'Sem Sala';
+        const cur = byRoomMap.get(roomKey) ?? { total: 0, conferenced: 0 };
         cur.total += 1;
         if ((dayConfs.get(mapNumber) ?? confByMap.get(mapNumber))?.status === 'completed') cur.conferenced += 1;
-        byRoomMap.set(room, cur);
+        byRoomMap.set(roomKey, cur);
       });
     });
     const byRoom = Array.from(byRoomMap.entries())
