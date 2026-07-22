@@ -41435,15 +41435,22 @@ var DatabaseStorage = class {
       }
     }
     if (toInsert.length === 0) return;
-    const keys = toInsert.map((r) => ({ mapa: r.mapa, fase: r.fase, dtOper: r.dtOper || "" }));
-    for (let i = 0; i < keys.length; i += CHUNK) {
-      const batch = keys.slice(i, i + CHUNK);
-      for (const k of batch) {
+    const groupMap = /* @__PURE__ */ new Map();
+    for (const r of toInsert) {
+      const key = `${r.fase}||${r.dtOper || ""}`;
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key).push(r.mapa);
+    }
+    for (const [key, mapas] of Array.from(groupMap.entries())) {
+      const [fase, dtOper] = key.split("||");
+      const MAP_CHUNK = 200;
+      for (let i = 0; i < mapas.length; i += MAP_CHUNK) {
+        const batch = mapas.slice(i, i + MAP_CHUNK);
         await db.delete(promaxData).where(
           and(
-            eq(promaxData.mapa, k.mapa),
-            sql`upper(trim(${promaxData.fase})) = ${k.fase}`,
-            k.dtOper ? eq(promaxData.dtOper, k.dtOper) : sql`(${promaxData.dtOper} is null or ${promaxData.dtOper} = '')`
+            sql`upper(trim(${promaxData.fase})) = ${fase}`,
+            dtOper ? eq(promaxData.dtOper, dtOper) : sql`(${promaxData.dtOper} is null or ${promaxData.dtOper} = '')`,
+            inArray(promaxData.mapa, batch)
           )
         );
       }

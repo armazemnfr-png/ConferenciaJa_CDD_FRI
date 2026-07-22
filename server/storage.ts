@@ -30,7 +30,7 @@ import {
   type MetalogEntry,
   type InsertMetalogEntry,
 } from "@shared/schema";
-import { eq, sql, and, desc } from "drizzle-orm";
+import { eq, sql, and, desc, inArray } from "drizzle-orm";
 
 // --- Helpers TML ---
 function tmlParseDt(dtOper: string): Date | null {
@@ -741,25 +741,34 @@ export class DatabaseStorage implements IStorage {
 
     if (toInsert.length === 0) return;
 
-    // Apaga somente os registros que serão substituídos (mesmo mapa+fase+dtOper)
-    // Agrupa por (mapa, fase, dtOper) e deleta em lotes
-    const keys = toInsert.map(r => ({ mapa: r.mapa, fase: r.fase, dtOper: r.dtOper || "" }));
-    for (let i = 0; i < keys.length; i += CHUNK) {
-      const batch = keys.slice(i, i + CHUNK);
-      for (const k of batch) {
+    // Deduplicação eficiente: agrupa por (fase, dtOper) e faz um único DELETE por grupo
+    // com mapa IN (...) — evita N queries individuais que causam timeout no Vercel
+    const groupMap = new Map<string, string[]>();
+    for (const r of toInsert) {
+      const key = `${r.fase}||${r.dtOper || ""}`;
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key)!.push(r.mapa);
+    }
+
+    for (const [key, mapas] of Array.from(groupMap.entries())) {
+      const [fase, dtOper] = key.split("||");
+      // DELETE em sub-lotes de 200 mapas para não estourar parâmetros da query
+      const MAP_CHUNK = 200;
+      for (let i = 0; i < mapas.length; i += MAP_CHUNK) {
+        const batch = mapas.slice(i, i + MAP_CHUNK);
         await db.delete(promaxData).where(
           and(
-            eq(promaxData.mapa, k.mapa),
-            sql`upper(trim(${promaxData.fase})) = ${k.fase}`,
-            k.dtOper
-              ? eq(promaxData.dtOper, k.dtOper)
+            sql`upper(trim(${promaxData.fase})) = ${fase}`,
+            dtOper
+              ? eq(promaxData.dtOper, dtOper)
               : sql`(${promaxData.dtOper} is null or ${promaxData.dtOper} = '')`,
+            inArray(promaxData.mapa, batch),
           )
         );
       }
     }
 
-    // Insere os novos registros
+    // Insere os novos registros em lotes
     for (let i = 0; i < toInsert.length; i += CHUNK) {
       await db.insert(promaxData).values(toInsert.slice(i, i + CHUNK));
     }
