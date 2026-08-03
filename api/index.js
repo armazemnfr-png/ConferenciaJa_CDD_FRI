@@ -40832,6 +40832,7 @@ var init_schema2 = __esm({
       tempo: text("tempo").notNull(),
       hrInicio: text("hr_inicio"),
       hrFinal: text("hr_final"),
+      data: text("data"),
       importedAt: timestamp("imported_at").defaultNow()
     });
     kpiResults = pgTable("kpi_results", {
@@ -41184,7 +41185,28 @@ var DatabaseStorage = class {
   }
   async bulkInsertGinfoChecklist(items) {
     if (items.length === 0) return;
-    await db.insert(ginfoChecklist).values(items);
+    const byData = /* @__PURE__ */ new Map();
+    for (const item of items) {
+      const d = item.data || "";
+      if (!byData.has(d)) byData.set(d, []);
+      byData.get(d).push((item.mapa || "").trim().toUpperCase());
+    }
+    for (const [data, mapas] of byData.entries()) {
+      if (mapas.length === 0) continue;
+      if (data) {
+        await db.execute(
+          sql`DELETE FROM ginfo_checklist WHERE data = ${data} AND upper(trim(mapa)) = ANY(${mapas}::text[])`
+        );
+      } else {
+        await db.execute(
+          sql`DELETE FROM ginfo_checklist WHERE data IS NULL AND upper(trim(mapa)) = ANY(${mapas}::text[])`
+        );
+      }
+    }
+    const CHUNK = 50;
+    for (let i = 0; i < items.length; i += CHUNK) {
+      await db.insert(ginfoChecklist).values(items.slice(i, i + CHUNK));
+    }
   }
   async getGinfoChecklist() {
     const rows = await db.select().from(ginfoChecklist).orderBy(desc(ginfoChecklist.importedAt));

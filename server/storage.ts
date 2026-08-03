@@ -383,8 +383,34 @@ export class DatabaseStorage implements IStorage {
 
   async bulkInsertGinfoChecklist(items: InsertGinfoChecklist[]): Promise<void> {
     if (items.length === 0) return;
-    // Acumula sem truncar — cada upload adiciona novos registros
-    await db.insert(ginfoChecklist).values(items);
+
+    // Agrupa por (data) — apaga só os registros do período sendo importado
+    const byData = new Map<string, string[]>();
+    for (const item of items) {
+      const d = (item as any).data || "";
+      if (!byData.has(d)) byData.set(d, []);
+      byData.get(d)!.push((item.mapa || "").trim().toUpperCase());
+    }
+
+    for (const [data, mapas] of byData.entries()) {
+      if (mapas.length === 0) continue;
+      if (data) {
+        // Apaga só os mapas desse dia que serão substituídos
+        await db.execute(
+          sql`DELETE FROM ginfo_checklist WHERE data = ${data} AND upper(trim(mapa)) = ANY(${mapas}::text[])`
+        );
+      } else {
+        // Sem data: apaga por mapa apenas
+        await db.execute(
+          sql`DELETE FROM ginfo_checklist WHERE data IS NULL AND upper(trim(mapa)) = ANY(${mapas}::text[])`
+        );
+      }
+    }
+
+    const CHUNK = 50;
+    for (let i = 0; i < items.length; i += CHUNK) {
+      await db.insert(ginfoChecklist).values(items.slice(i, i + CHUNK));
+    }
   }
 
   async getGinfoChecklist(): Promise<GinfoChecklist[]> {

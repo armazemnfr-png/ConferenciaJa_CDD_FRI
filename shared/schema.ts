@@ -93,6 +93,7 @@ export const ginfoChecklist = pgTable("ginfo_checklist", {
   tempo: text("tempo").notNull(),
   hrInicio: text("hr_inicio"),
   hrFinal: text("hr_final"),
+  data: text("data"),
   importedAt: timestamp("imported_at").defaultNow(),
 });
 
