@@ -36,6 +36,7 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
   const [actionTaken, setActionTaken] = useState(entry.actionTaken ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -77,8 +78,6 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
   }
 
   async function handleDelete() {
-    if (!window.confirm("Tem certeza que deseja excluir este relato de teste?")) return;
-
     setDeleting(true);
     try {
       const res = await fetch(`/api/metalog/${entry.id}`, {
@@ -198,14 +197,34 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
 
       {/* Excluir relato */}
       <td className="px-4 py-3 text-center">
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          title="Excluir relato"
-          className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        {confirmDelete ? (
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-xs text-red-600 font-semibold whitespace-nowrap">Excluir?</p>
+            <div className="flex gap-1">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-2.5 py-1 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {deleting ? "..." : "Sim"}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-2.5 py-1 bg-muted text-muted-foreground text-xs font-bold rounded-lg hover:bg-muted/80 transition-colors"
+              >
+                Não
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            title="Excluir relato"
+            className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
       </td>
     </tr>
   );
