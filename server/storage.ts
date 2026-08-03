@@ -1007,6 +1007,10 @@ export class DatabaseStorage implements IStorage {
     return rows[0];
   }
 
+  async deleteMetalogEntry(id: number): Promise<void> {
+    await db.delete(metalogEntries).where(eq(metalogEntries.id, id));
+  }
+
   async getMetalogStats(): Promise<{ kpiRanking: { kpi: string; count: number }[]; statusCounts: { em_andamento: number; concluida: number; nao_avancou: number } }> {
     const entries = await db.select().from(metalogEntries);
     const kpiMap = new Map<string, number>();

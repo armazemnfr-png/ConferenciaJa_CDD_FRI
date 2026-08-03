@@ -41635,6 +41635,9 @@ var DatabaseStorage = class {
     const rows = await db.update(metalogEntries).set({ status, blockerJustification: blockerJustification ?? null, actionTaken: actionTaken ?? null }).where(eq(metalogEntries.id, id)).returning();
     return rows[0];
   }
+  async deleteMetalogEntry(id) {
+    await db.delete(metalogEntries).where(eq(metalogEntries.id, id));
+  }
   async getMetalogStats() {
     const entries = await db.select().from(metalogEntries);
     const kpiMap = /* @__PURE__ */ new Map();
@@ -42340,6 +42343,19 @@ async function registerRoutes(httpServer2, app2) {
       res.json(updated);
     } catch (err) {
       res.status(500).json({ message: "Erro ao atualizar status." });
+    }
+  });
+  app2.delete("/api/metalog/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID inv\xE1lido" });
+      }
+      await storage.deleteMetalogEntry(id);
+      res.status(200).json({ message: "Relato exclu\xEDdo com sucesso" });
+    } catch (error) {
+      console.error("Erro ao excluir relato:", error);
+      res.status(500).json({ message: "Erro ao excluir relato do banco de dados" });
     }
   });
   return httpServer2;
