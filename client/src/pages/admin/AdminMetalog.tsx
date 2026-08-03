@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { MessageSquareHeart, TrendingUp, CheckCircle2, Clock, XCircle, AlertTriangle, PenLine, Save, Users, UserCheck, UserX, Search } from "lucide-react";
+import { MessageSquareHeart, TrendingUp, CheckCircle2, Clock, XCircle, AlertTriangle, PenLine, Save, Users, UserCheck, UserX, Search, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +35,7 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
   const [justification, setJustification] = useState(entry.blockerJustification ?? "");
   const [actionTaken, setActionTaken] = useState(entry.actionTaken ?? "");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -72,6 +73,28 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
       toast({ title: "Erro de conexão", variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm("Tem certeza que deseja excluir este relato de teste?")) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/metalog/${entry.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast({ title: "Relato excluído com sucesso!" });
+        queryClient.invalidateQueries({ queryKey: ["/api/metalog"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/metalog/stats"] });
+      } else {
+        toast({ title: "Erro ao excluir relato", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Erro de conexão", variant: "destructive" });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -171,6 +194,18 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
             </button>
           )}
         </div>
+      </td>
+
+      {/* Excluir relato */}
+      <td className="px-4 py-3 text-center">
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          title="Excluir relato"
+          className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
       </td>
     </tr>
   );
@@ -420,6 +455,7 @@ export default function AdminMetalog() {
                         O que foi feito (gestão)
                       </th>
                       <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Aderência</th>
+                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap text-center">Excluir</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -436,3 +472,4 @@ export default function AdminMetalog() {
     </AdminLayout>
   );
 }
+

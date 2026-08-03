@@ -646,5 +646,20 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/metalog/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID inválido" });
+      }
+
+      await storage.deleteMetalogEntry(id);
+      res.status(200).json({ message: "Relato excluído com sucesso" });
+    } catch (error) {
+      console.error("Erro ao excluir relato:", error);
+      res.status(500).json({ message: "Erro ao excluir relato do banco de dados" });
+    }
+  });
+
   return httpServer;
 }
