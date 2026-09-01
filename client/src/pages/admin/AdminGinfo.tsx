@@ -6,6 +6,21 @@ import type { GinfoChecklist } from "@shared/schema";
 
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
+// Converte as datas do relatório para o mesmo formato dos inputs HTML (AAAA-MM-DD).
+// A data do upload (importedAt) não deve ser usada para os filtros do GINFO.
+const toDateKey = (value: string | null | undefined): string => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
+
+  const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (br) return `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`;
+
+  return "";
+};
+
 export default function AdminGinfo() {
   const [search, setSearch] = useState("");
   const [filterEquipe, setFilterEquipe] = useState("all");
@@ -26,18 +41,12 @@ export default function AdminGinfo() {
   // Filtro de período — base para métricas e tabela
   const dateFiltered = items.filter((item) => {
     if (!hasDateFilter) return true;
-    const importedDate = item.importedAt ? new Date(item.importedAt) : null;
-    if (!importedDate) return true;
-    // Zera hora para comparar só a data
-    const day = new Date(importedDate.getFullYear(), importedDate.getMonth(), importedDate.getDate());
-    if (dateFrom) {
-      const from = new Date(dateFrom + "T00:00:00");
-      if (day < from) return false;
-    }
-    if (dateTo) {
-      const to = new Date(dateTo + "T00:00:00");
-      if (day > to) return false;
-    }
+    const checklistDate = toDateKey(item.data);
+    // Registros legados sem data interna não podem ser atribuídos artificialmente
+    // ao dia em que foram importados.
+    if (!checklistDate) return false;
+    if (dateFrom && checklistDate < dateFrom) return false;
+    if (dateTo && checklistDate > dateTo) return false;
     return true;
   });
 
@@ -61,9 +70,9 @@ export default function AdminGinfo() {
 
   const handleExport = () => {
     if (filtered.length === 0) return;
-    const header = "Realizado Por,Equipe,Mapa,Tempo\n";
+     const header = "Data,Realizado Por,Equipe,Mapa,Tempo\n";
     const rows = filtered
-      .map((i) => `"${i.realizadoPor}","${i.equipe}","${i.mapa}","${i.tempo}"`)
+       .map((i) => `"${i.data || ""}","${i.realizadoPor}","${i.equipe}","${i.mapa}","${i.tempo}"`)
       .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -254,6 +263,9 @@ export default function AdminGinfo() {
                   <th className="px-4 py-3 text-left">
                     <span className="flex items-center gap-1"><Map className="w-3 h-3" /> Mapa</span>
                   </th>
+                   <th className="px-4 py-3 text-left">
+                     <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> Data checklist</span>
+                   </th>
                   <th className="px-4 py-3 text-left">
                     <span className="flex items-center gap-1"><Users className="w-3 h-3" /> Equipe</span>
                   </th>
@@ -273,6 +285,7 @@ export default function AdminGinfo() {
                     className="hover:bg-gray-50 transition"
                   >
                     <td className="px-4 py-3 font-semibold text-blue-700">{item.mapa}</td>
+                     <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{item.data || "—"}</td>
                     <td className="px-4 py-3">
                       <span className="inline-block bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-0.5 rounded-full">
                         {item.equipe || "—"}
