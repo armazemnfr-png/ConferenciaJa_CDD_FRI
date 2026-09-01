@@ -28,6 +28,7 @@ import {
   type DashboardMetrics,
   type TmlRecord,
   type MetalogEntry,
+  type MetalogEntrySummary,
   type InsertMetalogEntry,
 } from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
@@ -130,6 +131,27 @@ export interface IStorage {
   bulkInsertKpiResults(items: InsertKpiResult[]): Promise<void>;
   getKpiResultByCpf(cpf: string): Promise<KpiResult | undefined>;
   getPromaxMapaLookup(): Promise<Map<string, string>>;
+  getMetalogEntries(): Promise<MetalogEntrySummary[]>;
+  updateMetalogStatus(
+    id: number,
+    status: string,
+    blockerJustification?: string | null,
+    actionTaken?: string | null,
+    rootCauseAssessment?: string | null,
+    actionAssessment?: string | null,
+    evidence?: {
+      fileName: string;
+      mimeType: string;
+      size: number;
+      data: string;
+    } | null,
+  ): Promise<MetalogEntry | undefined>;
+  getMetalogEvidence(id: number): Promise<{
+    fileName: string;
+    mimeType: string;
+    size: number;
+    data: string;
+  } | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1052,8 +1074,24 @@ export class DatabaseStorage implements IStorage {
     return rows[0];
   }
 
-  async getMetalogEntries(): Promise<MetalogEntry[]> {
-    return db.select().from(metalogEntries).orderBy(desc(metalogEntries.createdAt));
+  async getMetalogEntries(): Promise<MetalogEntrySummary[]> {
+    return db.select({
+      id: metalogEntries.id,
+      name: metalogEntries.name,
+      kpi: metalogEntries.kpi,
+      kpiOther: metalogEntries.kpiOther,
+      reason: metalogEntries.reason,
+      solution: metalogEntries.solution,
+      status: metalogEntries.status,
+      blockerJustification: metalogEntries.blockerJustification,
+      actionTaken: metalogEntries.actionTaken,
+      rootCauseAssessment: metalogEntries.rootCauseAssessment,
+      actionAssessment: metalogEntries.actionAssessment,
+      evidenceName: metalogEntries.evidenceName,
+      evidenceMimeType: metalogEntries.evidenceMimeType,
+      evidenceSize: metalogEntries.evidenceSize,
+      createdAt: metalogEntries.createdAt,
+    }).from(metalogEntries).orderBy(desc(metalogEntries.createdAt));
   }
 
   async updateMetalogStatus(
@@ -1063,7 +1101,23 @@ export class DatabaseStorage implements IStorage {
     actionTaken?: string | null,
     rootCauseAssessment?: string | null,
     actionAssessment?: string | null,
+    evidence?: {
+      fileName: string;
+      mimeType: string;
+      size: number;
+      data: string;
+    } | null,
   ): Promise<MetalogEntry | undefined> {
+    const evidenceUpdate = evidence === undefined
+      ? {}
+      : evidence === null
+      ? { evidenceName: null, evidenceMimeType: null, evidenceSize: null, evidenceData: null }
+      : {
+          evidenceName: evidence.fileName,
+          evidenceMimeType: evidence.mimeType,
+          evidenceSize: evidence.size,
+          evidenceData: evidence.data,
+        };
     const rows = await db
       .update(metalogEntries)
       .set({
@@ -1072,10 +1126,37 @@ export class DatabaseStorage implements IStorage {
         actionTaken: actionTaken ?? null,
         rootCauseAssessment: rootCauseAssessment ?? null,
         actionAssessment: actionAssessment ?? null,
+        ...evidenceUpdate,
       })
       .where(eq(metalogEntries.id, id))
       .returning();
     return rows[0];
+  }
+
+  async getMetalogEvidence(id: number): Promise<{
+    fileName: string;
+    mimeType: string;
+    size: number;
+    data: string;
+  } | undefined> {
+    const rows = await db
+      .select({
+        fileName: metalogEntries.evidenceName,
+        mimeType: metalogEntries.evidenceMimeType,
+        size: metalogEntries.evidenceSize,
+        data: metalogEntries.evidenceData,
+      })
+      .from(metalogEntries)
+      .where(eq(metalogEntries.id, id))
+      .limit(1);
+    const evidence = rows[0];
+    if (!evidence?.fileName || !evidence.mimeType || !evidence.size || !evidence.data) return undefined;
+    return {
+      fileName: evidence.fileName,
+      mimeType: evidence.mimeType,
+      size: evidence.size,
+      data: evidence.data,
+    };
   }
 
   async deleteMetalogEntry(id: number): Promise<void> {

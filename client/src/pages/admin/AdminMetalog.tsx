@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { MessageSquareHeart, TrendingUp, CheckCircle2, Clock, XCircle, AlertTriangle, PenLine, Save, Users, UserCheck, UserX, Search, Trash2 } from "lucide-react";
+import { MessageSquareHeart, TrendingUp, CheckCircle2, Clock, XCircle, AlertTriangle, PenLine, Save, Users, UserCheck, UserX, Search, Trash2, Paperclip, FileText, ExternalLink, X } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import type { MetalogEntry } from "@shared/schema";
+import type { MetalogEntrySummary } from "@shared/schema";
 
 const STATUS_LABELS: Record<string, { label: string; color: string; icon: any }> = {
   em_andamento: { label: "Em Andamento", color: "bg-amber-100 text-amber-800 border-amber-200", icon: Clock },
@@ -20,6 +20,29 @@ const ASSESSMENT_OPTIONS = [
 ] as const;
 
 const BAR_COLORS = ["#7c3aed", "#4f46e5", "#6366f1", "#818cf8", "#a5b4fc", "#c4b5fd", "#ddd6fe", "#ede9fe", "#f5f3ff", "#faf5ff"];
+const MAX_EVIDENCE_SIZE = 3 * 1024 * 1024;
+const EVIDENCE_ACCEPT = "application/pdf,image/png,image/jpeg,image/webp";
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      const comma = result.indexOf(",");
+      if (comma < 0) reject(new Error("Não foi possível ler o arquivo."));
+      else resolve(result.slice(comma + 1));
+    };
+    reader.onerror = () => reject(new Error("Não foi possível ler o arquivo."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatFileSize(size: number | null | undefined): string {
+  if (!size) return "";
+  return size >= 1024 * 1024
+    ? `${(size / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(size / 1024))} KB`;
+}
 
 function StatCard({ label, value, total, color, icon: Icon }: { label: string; value: number; total: number; color: string; icon: any }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
@@ -35,12 +58,14 @@ function StatCard({ label, value, total, color, icon: Icon }: { label: string; v
   );
 }
 
-function EntryRow({ entry }: { entry: MetalogEntry }) {
+function EntryRow({ entry }: { entry: MetalogEntrySummary }) {
   const [status, setStatus] = useState(entry.status);
   const [justification, setJustification] = useState(entry.blockerJustification ?? "");
   const [actionTaken, setActionTaken] = useState(entry.actionTaken ?? "");
   const [rootCauseAssessment, setRootCauseAssessment] = useState<string | null>(entry.rootCauseAssessment ?? null);
   const [actionAssessment, setActionAssessment] = useState<string | null>(entry.actionAssessment ?? null);
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [removeEvidence, setRemoveEvidence] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -53,7 +78,25 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
     actionTaken.trim() !== (entry.actionTaken ?? "") ||
     rootCauseAssessment !== (entry.rootCauseAssessment ?? null) ||
     actionAssessment !== (entry.actionAssessment ?? null) ||
-    (needsJustification && justification.trim() !== (entry.blockerJustification ?? ""));
+    (needsJustification && justification.trim() !== (entry.blockerJustification ?? "")) ||
+    evidenceFile !== null ||
+    removeEvidence;
+
+  function handleEvidenceChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!["application/pdf", "image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      toast({ title: "Formato não permitido", description: "Anexe um PDF, PNG, JPG ou WEBP.", variant: "destructive" });
+      return;
+    }
+    if (file.size > MAX_EVIDENCE_SIZE) {
+      toast({ title: "Arquivo muito grande", description: "A evidência deve ter no máximo 3 MB.", variant: "destructive" });
+      return;
+    }
+    setEvidenceFile(file);
+    setRemoveEvidence(false);
+  }
 
   async function handleSave() {
     if (needsJustification && !justification.trim()) {
@@ -62,6 +105,18 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
     }
     setSaving(true);
     try {
+      let evidence: { fileName: string; mimeType: string; size: number; data: string } | null | undefined;
+      if (evidenceFile) {
+        evidence = {
+          fileName: evidenceFile.name,
+          mimeType: evidenceFile.type as "application/pdf" | "image/png" | "image/jpeg" | "image/webp",
+          size: evidenceFile.size,
+          data: await fileToBase64(evidenceFile),
+        };
+      } else if (removeEvidence) {
+        evidence = null;
+      }
+
       const res = await fetch(`/api/metalog/${entry.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -71,6 +126,7 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
           actionTaken: actionTaken.trim() || null,
           rootCauseAssessment,
           actionAssessment,
+          ...(evidenceFile || removeEvidence ? { evidence } : {}),
         }),
       });
       if (res.ok) {
@@ -196,6 +252,61 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
           rows={2}
           className="w-full px-2.5 py-2 text-sm rounded-lg border-2 border-[#7c3aed]/25 focus:border-[#7c3aed] focus:outline-none resize-none bg-white placeholder:text-muted-foreground/40 transition-all min-w-[180px]"
         />
+        <div className="mt-2 space-y-1.5">
+          <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#7c3aed]/25 text-xs font-semibold text-[#7c3aed] hover:bg-[#7c3aed]/5 cursor-pointer transition-colors">
+            <Paperclip className="w-3.5 h-3.5" />
+            {evidenceFile ? "Trocar evidência" : "Anexar evidência"}
+            <input
+              type="file"
+              accept={EVIDENCE_ACCEPT}
+              onChange={handleEvidenceChange}
+              className="hidden"
+              data-testid={`input-metalog-evidence-${entry.id}`}
+            />
+          </label>
+          {evidenceFile && (
+            <div className="flex items-center gap-1.5 text-xs text-foreground">
+              <FileText className="w-3.5 h-3.5 text-[#7c3aed] shrink-0" />
+              <span className="truncate" title={evidenceFile.name}>{evidenceFile.name}</span>
+              <span className="text-muted-foreground shrink-0">({formatFileSize(evidenceFile.size)})</span>
+              <button
+                type="button"
+                onClick={() => setEvidenceFile(null)}
+                className="p-0.5 text-muted-foreground hover:text-red-600"
+                title="Remover arquivo selecionado"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+          {entry.evidenceName && !evidenceFile && !removeEvidence && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <FileText className="w-3.5 h-3.5 text-green-600 shrink-0" />
+              <a
+                href={`/api/metalog/${entry.id}/evidence`}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate text-green-700 hover:underline"
+                title={`Abrir ${entry.evidenceName}`}
+              >
+                {entry.evidenceName}
+              </a>
+              <span className="text-muted-foreground shrink-0">({formatFileSize(entry.evidenceSize)})</span>
+              <ExternalLink className="w-3 h-3 text-muted-foreground shrink-0" />
+              <button
+                type="button"
+                onClick={() => setRemoveEvidence(true)}
+                className="p-0.5 text-muted-foreground hover:text-red-600"
+                title="Remover evidência ao salvar"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+          {removeEvidence && (
+            <p className="text-xs text-red-600">A evidência será removida ao salvar.</p>
+          )}
+        </div>
       </td>
 
       {/* Status + Ações */}
@@ -290,7 +401,7 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
 }
 
 export default function AdminMetalog() {
-  const { data: entries = [], isLoading } = useQuery<MetalogEntry[]>({ queryKey: ["/api/metalog"] });
+  const { data: entries = [], isLoading } = useQuery<MetalogEntrySummary[]>({ queryKey: ["/api/metalog"] });
   const { data: stats } = useQuery<{
     kpiRanking: { kpi: string; count: number }[];
     statusCounts: { em_andamento: number; concluida: number; nao_avancou: number };

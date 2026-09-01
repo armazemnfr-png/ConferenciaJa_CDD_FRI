@@ -40854,6 +40854,10 @@ var init_schema2 = __esm({
       actionTaken: text("action_taken"),
       rootCauseAssessment: text("root_cause_assessment"),
       actionAssessment: text("action_assessment"),
+      evidenceName: text("evidence_name"),
+      evidenceMimeType: text("evidence_mime_type"),
+      evidenceSize: integer("evidence_size"),
+      evidenceData: text("evidence_data"),
       createdAt: timestamp("created_at").defaultNow()
     });
     insertMetalogEntrySchema = createInsertSchema(metalogEntries).omit({ id: true, createdAt: true });
@@ -40862,7 +40866,13 @@ var init_schema2 = __esm({
       blockerJustification: z.string().nullable().optional(),
       actionTaken: z.string().nullable().optional(),
       rootCauseAssessment: z.enum(["aplicavel", "nao_aplicavel"]).nullable().optional(),
-      actionAssessment: z.enum(["aplicavel", "nao_aplicavel"]).nullable().optional()
+      actionAssessment: z.enum(["aplicavel", "nao_aplicavel"]).nullable().optional(),
+      evidence: z.object({
+        fileName: z.string().min(1).max(255),
+        mimeType: z.enum(["application/pdf", "image/png", "image/jpeg", "image/webp"]),
+        size: z.number().int().positive().max(3 * 1024 * 1024),
+        data: z.string().regex(/^[A-Za-z0-9+/]*={0,2}$/).max(42e5)
+      }).nullable().optional()
     });
     insertKpiResultSchema = createInsertSchema(kpiResults).omit({ id: true, importedAt: true });
     uploadMeta = pgTable("upload_meta", {
@@ -41682,17 +41692,56 @@ var DatabaseStorage = class {
     return rows[0];
   }
   async getMetalogEntries() {
-    return db.select().from(metalogEntries).orderBy(desc(metalogEntries.createdAt));
+    return db.select({
+      id: metalogEntries.id,
+      name: metalogEntries.name,
+      kpi: metalogEntries.kpi,
+      kpiOther: metalogEntries.kpiOther,
+      reason: metalogEntries.reason,
+      solution: metalogEntries.solution,
+      status: metalogEntries.status,
+      blockerJustification: metalogEntries.blockerJustification,
+      actionTaken: metalogEntries.actionTaken,
+      rootCauseAssessment: metalogEntries.rootCauseAssessment,
+      actionAssessment: metalogEntries.actionAssessment,
+      evidenceName: metalogEntries.evidenceName,
+      evidenceMimeType: metalogEntries.evidenceMimeType,
+      evidenceSize: metalogEntries.evidenceSize,
+      createdAt: metalogEntries.createdAt
+    }).from(metalogEntries).orderBy(desc(metalogEntries.createdAt));
   }
-  async updateMetalogStatus(id, status, blockerJustification, actionTaken, rootCauseAssessment, actionAssessment) {
+  async updateMetalogStatus(id, status, blockerJustification, actionTaken, rootCauseAssessment, actionAssessment, evidence) {
+    const evidenceUpdate = evidence === void 0 ? {} : evidence === null ? { evidenceName: null, evidenceMimeType: null, evidenceSize: null, evidenceData: null } : {
+      evidenceName: evidence.fileName,
+      evidenceMimeType: evidence.mimeType,
+      evidenceSize: evidence.size,
+      evidenceData: evidence.data
+    };
     const rows = await db.update(metalogEntries).set({
       status,
       blockerJustification: blockerJustification ?? null,
       actionTaken: actionTaken ?? null,
       rootCauseAssessment: rootCauseAssessment ?? null,
-      actionAssessment: actionAssessment ?? null
+      actionAssessment: actionAssessment ?? null,
+      ...evidenceUpdate
     }).where(eq(metalogEntries.id, id)).returning();
     return rows[0];
+  }
+  async getMetalogEvidence(id) {
+    const rows = await db.select({
+      fileName: metalogEntries.evidenceName,
+      mimeType: metalogEntries.evidenceMimeType,
+      size: metalogEntries.evidenceSize,
+      data: metalogEntries.evidenceData
+    }).from(metalogEntries).where(eq(metalogEntries.id, id)).limit(1);
+    const evidence = rows[0];
+    if (!evidence?.fileName || !evidence.mimeType || !evidence.size || !evidence.data) return void 0;
+    return {
+      fileName: evidence.fileName,
+      mimeType: evidence.mimeType,
+      size: evidence.size,
+      data: evidence.data
+    };
   }
   async deleteMetalogEntry(id) {
     await db.delete(metalogEntries).where(eq(metalogEntries.id, id));
@@ -42404,7 +42453,7 @@ async function registerRoutes(httpServer2, app2) {
       const { updateMetalogStatusSchema: updateMetalogStatusSchema2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const parsed = updateMetalogStatusSchema2.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Dados inv\xE1lidos" });
-      const { status, blockerJustification, actionTaken, rootCauseAssessment, actionAssessment } = parsed.data;
+      const { status, blockerJustification, actionTaken, rootCauseAssessment, actionAssessment, evidence } = parsed.data;
       if (status === "nao_avancou" && !blockerJustification) {
         return res.status(400).json({ message: "Justificativa obrigat\xF3ria quando 'N\xE3o Avan\xE7ou'." });
       }
@@ -42414,12 +42463,35 @@ async function registerRoutes(httpServer2, app2) {
         blockerJustification,
         actionTaken,
         rootCauseAssessment,
-        actionAssessment
+        actionAssessment,
+        evidence ? {
+          fileName: evidence.fileName,
+          mimeType: evidence.mimeType,
+          size: evidence.size,
+          data: evidence.data
+        } : evidence
       );
       if (!updated) return res.status(404).json({ message: "Relato n\xE3o encontrado." });
-      res.json(updated);
+      const { evidenceData: _evidenceData, ...updatedSummary } = updated;
+      res.json(updatedSummary);
     } catch (err) {
       res.status(500).json({ message: "Erro ao atualizar status." });
+    }
+  });
+  app2.get("/api/metalog/:id/evidence", async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (isNaN(id)) return res.status(400).json({ message: "ID inv\xE1lido" });
+      const evidence = await storage.getMetalogEvidence(id);
+      if (!evidence) return res.status(404).json({ message: "Evid\xEAncia n\xE3o encontrada." });
+      const safeName = evidence.fileName.replace(/[^a-zA-Z0-9._-]+/g, "_");
+      res.setHeader("Content-Type", evidence.mimeType);
+      res.setHeader("Content-Length", String(evidence.size));
+      res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
+      res.send(Buffer.from(evidence.data, "base64"));
+    } catch (err) {
+      console.error("Erro ao buscar evid\xEAncia do METALOG:", err);
+      res.status(500).json({ message: "Erro ao abrir evid\xEAncia." });
     }
   });
   app2.delete("/api/metalog/:id", async (req, res) => {

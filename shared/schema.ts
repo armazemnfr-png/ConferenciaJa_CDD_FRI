@@ -117,11 +117,16 @@ export const metalogEntries = pgTable("metalog_entries", {
   actionTaken: text("action_taken"),
   rootCauseAssessment: text("root_cause_assessment"),
   actionAssessment: text("action_assessment"),
+  evidenceName: text("evidence_name"),
+  evidenceMimeType: text("evidence_mime_type"),
+  evidenceSize: integer("evidence_size"),
+  evidenceData: text("evidence_data"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const insertMetalogEntrySchema = createInsertSchema(metalogEntries).omit({ id: true, createdAt: true });
 export type MetalogEntry = typeof metalogEntries.$inferSelect;
+export type MetalogEntrySummary = Omit<MetalogEntry, "evidenceData">;
 export type InsertMetalogEntry = z.infer<typeof insertMetalogEntrySchema>;
 
 export const updateMetalogStatusSchema = z.object({
@@ -130,6 +135,12 @@ export const updateMetalogStatusSchema = z.object({
   actionTaken: z.string().nullable().optional(),
   rootCauseAssessment: z.enum(["aplicavel", "nao_aplicavel"]).nullable().optional(),
   actionAssessment: z.enum(["aplicavel", "nao_aplicavel"]).nullable().optional(),
+  evidence: z.object({
+    fileName: z.string().min(1).max(255),
+    mimeType: z.enum(["application/pdf", "image/png", "image/jpeg", "image/webp"]),
+    size: z.number().int().positive().max(3 * 1024 * 1024),
+    data: z.string().regex(/^[A-Za-z0-9+/]*={0,2}$/).max(4_200_000),
+  }).nullable().optional(),
 });
 
 export const insertKpiResultSchema = createInsertSchema(kpiResults).omit({ id: true, importedAt: true });

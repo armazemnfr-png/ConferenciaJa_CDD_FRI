@@ -635,7 +635,7 @@ export async function registerRoutes(
       const { updateMetalogStatusSchema } = await import("@shared/schema");
       const parsed = updateMetalogStatusSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Dados inválidos" });
-      const { status, blockerJustification, actionTaken, rootCauseAssessment, actionAssessment } = parsed.data;
+      const { status, blockerJustification, actionTaken, rootCauseAssessment, actionAssessment, evidence } = parsed.data;
       if (status === "nao_avancou" && !blockerJustification) {
         return res.status(400).json({ message: "Justificativa obrigatória quando 'Não Avançou'." });
       }
@@ -646,11 +646,38 @@ export async function registerRoutes(
         actionTaken,
         rootCauseAssessment,
         actionAssessment,
+        evidence ? {
+          fileName: evidence.fileName,
+          mimeType: evidence.mimeType,
+          size: evidence.size,
+          data: evidence.data,
+        } : evidence,
       );
       if (!updated) return res.status(404).json({ message: "Relato não encontrado." });
-      res.json(updated);
+      // Não devolve o conteúdo base64 na resposta da listagem/atualização.
+      // A evidência é aberta separadamente pela rota /evidence.
+      const { evidenceData: _evidenceData, ...updatedSummary } = updated;
+      res.json(updatedSummary);
     } catch (err) {
       res.status(500).json({ message: "Erro ao atualizar status." });
+    }
+  });
+
+  app.get("/api/metalog/:id/evidence", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
+      const evidence = await storage.getMetalogEvidence(id);
+      if (!evidence) return res.status(404).json({ message: "Evidência não encontrada." });
+
+      const safeName = evidence.fileName.replace(/[^a-zA-Z0-9._-]+/g, "_");
+      res.setHeader("Content-Type", evidence.mimeType);
+      res.setHeader("Content-Length", String(evidence.size));
+      res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
+      res.send(Buffer.from(evidence.data, "base64"));
+    } catch (err) {
+      console.error("Erro ao buscar evidência do METALOG:", err);
+      res.status(500).json({ message: "Erro ao abrir evidência." });
     }
   });
 
