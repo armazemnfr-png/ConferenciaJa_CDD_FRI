@@ -510,6 +510,7 @@ export async function registerRoutes(
         { key: 'tempo',        header: 'TEMPO' },
         { key: 'hrInicio',     header: 'HR INICIO' },
         { key: 'hrFinal',      header: 'HR FINAL' },
+         { key: 'data',         header: 'DATA' },
       ]);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="ginfo_export.csv"');

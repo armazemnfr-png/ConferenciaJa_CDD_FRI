@@ -121,28 +121,52 @@ const UploadDados = () => {
             })).filter((item: any) => item.registration && item.registration !== "");
           }
           else if (activeTab === 'GINFO') {
+            const normalizeHeader = (value: string): string =>
+              value
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toUpperCase()
+                .replace(/[^A-Z0-9]+/g, ' ')
+                .trim();
+            const rowEntries = (row: any): [string, string][] =>
+              Object.entries(row).map(([key, value]) => [normalizeHeader(key), String(value ?? '').trim()]);
+            const getField = (row: any, aliases: string[], contains?: string): string => {
+              const entries = rowEntries(row);
+              const aliasSet = new Set(aliases.map(normalizeHeader));
+              const exact = entries.find(([key, value]) => aliasSet.has(key) && value !== '');
+              if (exact) return exact[1];
+              if (contains) {
+                const partial = entries.find(([key, value]) => key.includes(normalizeHeader(contains)) && value !== '');
+                if (partial) return partial[1];
+              }
+              return '';
+            };
+            const getTeam = (row: any): string => {
+              const team = rowEntries(row).find(([key, value]) => key.startsWith('EQUIPE') && value !== '');
+              return team?.[1] ?? '';
+            };
             // Extrai só a hora de "DD/MM/YYYY HH:MM" ou "DD/MM/YYYY HH:MM:SS"
             const extractTime = (v: string): string => {
               const m = v.match(/(\d{1,2}:\d{2}(?::\d{2})?)$/);
               return m ? m[1] : v;
             };
+            const extractDate = (v: string): string => {
+              const match = v.match(/(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})/);
+              return match ? match[1] : '';
+            };
             items = results.data.map((row: any) => {
-              const realizadoPor = String(row['REALIZADO POR'] || row['Realizado Por'] || row['realizado_por'] || "").trim();
-              // Arquivo tem coluna EQUIPE duplicada (equipe motorista, equipe 2º motorista)
-              // PapaParse renomeia duplicatas como EQUIPE_2, EQUIPE_3 — pega o primeiro não-vazio
-              const equipe = String(
-                row['EQUIPE'] || row['EQUIPE_2'] || row['EQUIPE_3'] ||
-                row['Equipe'] || row['equipe'] || ""
-              ).trim();
-              const mapa = String(row['MAPA'] || row['Mapa'] || row['mapa'] || "").trim();
-              const tempo = String(row['TEMPO'] || row['Tempo'] || row['tempo'] || "").trim();
-              const hrInicioRaw = String(row['HR INICIO'] || row['Hr Inicio'] || row['HR_INICIO'] || row['HrInicio'] || row['HRINICIO'] || "").trim();
-              const hrFinalRaw = String(row['HR FINAL'] || row['Hr Final'] || row['HR_FINAL'] || row['HrFinal'] || row['HRFINAL'] || "").trim();
+              const realizadoPor = getField(row, ['REALIZADO POR', 'REALIZADO_POR', 'REALIZADOPOR', 'COLABORADOR', 'USUARIO']);
+              // Arquivo pode ter EQUIPE duplicada; pega o primeiro valor não vazio.
+              const equipe = getTeam(row);
+              const mapa = getField(row, ['MAPA', 'MAPAS', 'NUMERO MAPA', 'N MAPA'], 'MAPA');
+              const tempo = getField(row, ['TEMPO', 'TEMPO TOTAL', 'TEMPO CHECKLIST', 'DURACAO', 'DURACAO CHECKLIST'], 'TEMPO');
+              const hrInicioRaw = getField(row, ['HR INICIO', 'HORA INICIO', 'HORARIO INICIO', 'DATA HORA INICIO', 'HRINICIO'], 'INICIO');
+              const hrFinalRaw = getField(row, ['HR FINAL', 'HORA FINAL', 'HORARIO FINAL', 'DATA HORA FINAL', 'HRFINAL'], 'FINAL');
               const hrInicio = extractTime(hrInicioRaw);
               const hrFinal = extractTime(hrFinalRaw);
               // Campos extras para cruzamento server-side quando MAPA vier vazio
-              const matricula = String(row['MATRICULA'] || row['Matricula'] || row['matricula'] || "").trim();
-              const data = String(row['DATA'] || row['Data'] || row['data'] || "").trim();
+              const matricula = getField(row, ['MATRICULA', 'MATRICULA MOTORISTA', 'REGISTRO', 'REGISTRO MOTORISTA'], 'MATRICULA');
+              const data = getField(row, ['DATA', 'DATA CHECKLIST', 'DATA DO CHECKLIST', 'DATA OPERACAO'], 'DATA') || extractDate(hrInicioRaw) || extractDate(hrFinalRaw);
               return { realizadoPor, equipe, mapa, tempo, hrInicio, hrFinal, matricula, data };
             }).filter((item: any) => (item.mapa || item.matricula) && item.tempo);
           }
@@ -171,7 +195,7 @@ const UploadDados = () => {
           queryClient.invalidateQueries({ queryKey: ['/api/upload-meta'] });
           setStatus({
             type: 'success',
-            msg: `Sucesso! ${items.length} registros importados. A base anterior de ${activeTab} foi limpa.`
+             msg: `Sucesso! ${items.length} registros importados. O histórico anterior foi preservado.`
           });
 
         } catch (err: any) {
