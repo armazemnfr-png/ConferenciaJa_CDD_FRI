@@ -42487,7 +42487,8 @@ async function registerRoutes(httpServer2, app2) {
       const safeName = evidence.fileName.replace(/[^a-zA-Z0-9._-]+/g, "_");
       res.setHeader("Content-Type", evidence.mimeType);
       res.setHeader("Content-Length", String(evidence.size));
-      res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
+      const disposition = req.query.download === "1" ? "attachment" : "inline";
+      res.setHeader("Content-Disposition", `${disposition}; filename="${safeName}"`);
       res.send(Buffer.from(evidence.data, "base64"));
     } catch (err) {
       console.error("Erro ao buscar evid\xEAncia do METALOG:", err);

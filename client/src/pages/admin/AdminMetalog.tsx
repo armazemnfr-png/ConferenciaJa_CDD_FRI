@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { MessageSquareHeart, TrendingUp, CheckCircle2, Clock, XCircle, AlertTriangle, PenLine, Save, Users, UserCheck, UserX, Search, Trash2, Paperclip, FileText, ExternalLink, X } from "lucide-react";
+import { MessageSquareHeart, TrendingUp, CheckCircle2, Clock, XCircle, AlertTriangle, PenLine, Save, Users, UserCheck, UserX, Search, Trash2, Paperclip, FileText, ExternalLink, Download, X } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -293,6 +293,15 @@ function EntryRow({ entry }: { entry: MetalogEntrySummary }) {
               </a>
               <span className="text-muted-foreground shrink-0">({formatFileSize(entry.evidenceSize)})</span>
               <ExternalLink className="w-3 h-3 text-muted-foreground shrink-0" />
+              <a
+                href={`/api/metalog/${entry.id}/evidence?download=1`}
+                download={entry.evidenceName}
+                className="p-0.5 text-green-700 hover:text-green-900"
+                title="Baixar evidência"
+                aria-label={`Baixar evidência ${entry.evidenceName}`}
+              >
+                <Download className="w-3.5 h-3.5" />
+              </a>
               <button
                 type="button"
                 onClick={() => setRemoveEvidence(true)}
