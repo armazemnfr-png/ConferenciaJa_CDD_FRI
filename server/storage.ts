@@ -496,6 +496,7 @@ export class DatabaseStorage implements IStorage {
 
       // Matinal
       // actualEndTime é UTC → converter para horário local Brasil (UTC-3): subtrair 180 min
+      const hasMatinal = !!matchingMatinal;
       const matinalMin = matchingMatinal?.durationMinutes ?? 0;
       const matinalEndMin = matchingMatinal && matchingMatinal.actualEndTime
         ? (new Date(matchingMatinal.actualEndTime).getUTCHours() * 60 + new Date(matchingMatinal.actualEndTime).getUTCMinutes() - 180)
@@ -507,6 +508,7 @@ export class DatabaseStorage implements IStorage {
       const checklistMin = (checklistEndMin > 0 && checklistStartMin > 0)
         ? Math.max(0, checklistEndMin - checklistStartMin)
         : (ginfo?.tempo ? tmlTimeToMin(ginfo.tempo) : 0);
+      const hasChecklist = !!ginfo && (checklistStartMin > 0 || checklistEndMin > 0 || checklistMin > 0);
 
       // Matinal → Pátio
       const matPatioOverlap = checklistStartMin > 0 && matinalEndMin > 0 && checklistStartMin < matinalEndMin;
@@ -519,6 +521,7 @@ export class DatabaseStorage implements IStorage {
       // Tempo de Conferência (da tabela conferences: endTime - startTime)
       // Horários UTC → horário local Brasil (UTC-3): subtrair 180 minutos
       const conf = confByMap.get(portaria.mapa.trim().toUpperCase());
+      const hasConference = !!(conf?.startTime && conf?.endTime);
       let conferenceMin = 0;
       let confStartLocalMin = 0;
       let confStartLocalSec = 0;
@@ -546,6 +549,8 @@ export class DatabaseStorage implements IStorage {
       // Pátio → Portaria (gap entre fim da conferência e saída na portaria)
       // Se não há conferência, usa fim do checklist como base
       const referenceEnd = confEndLocalMin > 0 ? confEndLocalMin : effectiveChecklistEnd;
+      const hasPortariaTime = portariaMin > 0;
+      const patioPortariaOverlap = hasPortariaTime && referenceEnd > 0 && portariaMin < referenceEnd;
       const patioPortariaMin = (portariaMin > 0 && referenceEnd > 0)
         ? Math.max(0, portariaMin - referenceEnd)
         : 0;
@@ -562,12 +567,17 @@ export class DatabaseStorage implements IStorage {
         matinalMin,
         matinalPatioMin,
         matPatioOverlap,
+        hasMatinal,
+        hasChecklist,
         checklistMin,
         checklistConferenceMin,
         checklistConferenceSec,
         ckConfOverlap,
+        hasConference,
         conferenceMin,
         patioPortariaMin,
+        patioPortariaOverlap,
+        hasPortariaTime,
         tmlMin: matinalMin + matinalPatioMin + checklistMin + checklistConferenceMin + conferenceMin + patioPortariaMin,
       });
     }

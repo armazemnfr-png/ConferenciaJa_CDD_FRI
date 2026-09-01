@@ -145,12 +145,12 @@ export default function AdminTml() {
       r.sala,
       r.dtOper,
       r.hrPortaria,
-      minToHMS(r.matinalMin),
-      r.matPatioOverlap ? "sobreposição" : r.matinalPatioMin > 0 ? minToHMS(r.matinalPatioMin) : "",
-      r.checklistMin > 0 ? minToHMS(r.checklistMin) : "",
-      r.ckConfOverlap ? "sobreposição" : r.checklistConferenceSec > 0 ? secToDisplay(r.checklistConferenceSec) : "",
-      r.conferenceMin > 0 ? minToHMS(r.conferenceMin) : "",
-      r.patioPortariaMin > 0 ? minToHMS(r.patioPortariaMin) : "",
+      r.hasMatinal ? minToHMS(r.matinalMin) : "",
+      !r.hasMatinal || !r.hasChecklist ? "" : r.matPatioOverlap ? "sobreposição" : minToHMS(r.matinalPatioMin),
+      r.hasChecklist ? minToHMS(r.checklistMin) : "",
+      !r.hasChecklist || !r.hasConference ? "" : r.ckConfOverlap ? "sobreposição" : secToDisplay(r.checklistConferenceSec),
+      r.hasConference ? minToHMS(r.conferenceMin) : "",
+      !r.hasPortariaTime ? "" : r.patioPortariaOverlap ? "sobreposição" : minToHMS(r.patioPortariaMin),
       minToHMS(r.tmlMin),
     ]);
     const csv = [headers, ...rows]
@@ -323,14 +323,16 @@ export default function AdminTml() {
                         <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">{r.sala}</span>
                       </td>
                       <td className="px-4 py-3 text-gray-500">{r.dtOper}</td>
-                      <td className="px-4 py-3 text-right font-mono text-pink-600">{minToHMS(r.matinalMin)}</td>
+                       <td className="px-4 py-3 text-right font-mono text-pink-600">{r.hasMatinal ? minToHMS(r.matinalMin) : "—"}</td>
                       <td className="px-4 py-3 text-right font-mono text-amber-600">
-                        {r.matPatioOverlap ? (
+                         {!r.hasMatinal || !r.hasChecklist ? (
+                           "—"
+                         ) : r.matPatioOverlap ? (
                           <TooltipProvider>
                             <UITooltip>
                               <TooltipTrigger asChild>
                                 <span className="inline-flex items-center gap-1 justify-end w-full cursor-default">
-                                  <span>—</span>
+                                   <span>Sobreposição</span>
                                   <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
                                 </span>
                               </TooltipTrigger>
@@ -339,18 +341,18 @@ export default function AdminTml() {
                               </TooltipContent>
                             </UITooltip>
                           </TooltipProvider>
-                        ) : r.matinalPatioMin > 0 ? (
-                          minToHMS(r.matinalPatioMin)
-                        ) : "—"}
+                         ) : minToHMS(r.matinalPatioMin)}
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-emerald-600">{r.checklistMin > 0 ? minToHMS(r.checklistMin) : "—"}</td>
+                       <td className="px-4 py-3 text-right font-mono text-emerald-600">{r.hasChecklist ? minToHMS(r.checklistMin) : "—"}</td>
                       <td className="px-4 py-3 text-right font-mono text-orange-600">
-                        {r.ckConfOverlap ? (
+                         {!r.hasChecklist || !r.hasConference ? (
+                           "—"
+                         ) : r.ckConfOverlap ? (
                           <TooltipProvider>
                             <UITooltip>
                               <TooltipTrigger asChild>
                                 <span className="inline-flex items-center gap-1 justify-end w-full cursor-default">
-                                  <span>—</span>
+                                   <span>Sobreposição</span>
                                   <AlertTriangle className="h-3.5 w-3.5 text-orange-400 shrink-0" />
                                 </span>
                               </TooltipTrigger>
@@ -359,18 +361,37 @@ export default function AdminTml() {
                               </TooltipContent>
                             </UITooltip>
                           </TooltipProvider>
-                        ) : r.checklistConferenceSec > 0 ? (
-                          secToDisplay(r.checklistConferenceSec)
-                        ) : "—"}
+                         ) : secToDisplay(r.checklistConferenceSec)}
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-sky-600">{r.conferenceMin > 0 ? minToHMS(r.conferenceMin) : "—"}</td>
-                      <td className="px-4 py-3 text-right font-mono text-violet-600">{r.patioPortariaMin > 0 ? minToHMS(r.patioPortariaMin) : "—"}</td>
+                       <td className="px-4 py-3 text-right font-mono text-sky-600">{r.hasConference ? minToHMS(r.conferenceMin) : "—"}</td>
+                       <td className="px-4 py-3 text-right font-mono text-violet-600">
+                         {!r.hasPortariaTime ? "—" : r.patioPortariaOverlap ? (
+                           <TooltipProvider>
+                             <UITooltip>
+                               <TooltipTrigger asChild>
+                                 <span className="inline-flex items-center gap-1 justify-end w-full cursor-default">
+                                   <span>Sobreposição</span>
+                                   <AlertTriangle className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                                 </span>
+                               </TooltipTrigger>
+                               <TooltipContent side="top" className="max-w-[240px] text-center text-xs">
+                                 A saída foi registrada antes do término da etapa anterior
+                               </TooltipContent>
+                             </UITooltip>
+                           </TooltipProvider>
+                         ) : minToHMS(r.patioPortariaMin)}
+                       </td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">{minToHMS(r.tmlMin)}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="px-5 py-3 border-t border-gray-100 text-xs text-gray-500 flex flex-wrap gap-x-4 gap-y-1">
+            <span><strong>—</strong> sem registro de origem</span>
+            <span><strong>0:00:00</strong> tempo zerado</span>
+            <span><strong>Sobreposição</strong> etapas simultâneas ou fora da sequência</span>
           </div>
         </div>
       </div>

@@ -195,12 +195,17 @@ export interface TmlRecord {
   matinalMin: number;
   matinalPatioMin: number;
   matPatioOverlap: boolean;
+  hasMatinal: boolean;
+  hasChecklist: boolean;
   checklistMin: number;
   checklistConferenceMin: number;
   checklistConferenceSec: number;
   ckConfOverlap: boolean;
+  hasConference: boolean;
   conferenceMin: number;
   patioPortariaMin: number;
+  patioPortariaOverlap: boolean;
+  hasPortariaTime: boolean;
   tmlMin: number;
 }
 

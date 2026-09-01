@@ -41270,15 +41270,18 @@ var DatabaseStorage = class {
         const md = new Date(m.date ?? m.actualEndTime ?? Date.now());
         return tmlSalaMatch(m.roomName, sala) && md.getFullYear() === portariaDate.getFullYear() && md.getMonth() === portariaDate.getMonth() && md.getDate() === portariaDate.getDate();
       }) : void 0;
+      const hasMatinal = !!matchingMatinal;
       const matinalMin = matchingMatinal?.durationMinutes ?? 0;
       const matinalEndMin = matchingMatinal && matchingMatinal.actualEndTime ? new Date(matchingMatinal.actualEndTime).getUTCHours() * 60 + new Date(matchingMatinal.actualEndTime).getUTCMinutes() - 180 : 0;
       const checklistStartMin = ginfo?.hrInicio ? tmlTimeToMin(ginfo.hrInicio) : 0;
       const checklistEndMin = ginfo?.hrFinal ? tmlTimeToMin(ginfo.hrFinal) : 0;
       const checklistMin = checklistEndMin > 0 && checklistStartMin > 0 ? Math.max(0, checklistEndMin - checklistStartMin) : ginfo?.tempo ? tmlTimeToMin(ginfo.tempo) : 0;
+      const hasChecklist = !!ginfo && (checklistStartMin > 0 || checklistEndMin > 0 || checklistMin > 0);
       const matPatioOverlap = checklistStartMin > 0 && matinalEndMin > 0 && checklistStartMin < matinalEndMin;
       const matinalPatioMin = checklistStartMin > 0 && matinalEndMin > 0 ? Math.max(0, checklistStartMin - matinalEndMin) : 0;
       const portariaMin = portaria.hrOper ? tmlTimeToMin(portaria.hrOper) : 0;
       const conf = confByMap.get(portaria.mapa.trim().toUpperCase());
+      const hasConference = !!(conf?.startTime && conf?.endTime);
       let conferenceMin = 0;
       let confStartLocalMin = 0;
       let confStartLocalSec = 0;
@@ -41298,6 +41301,8 @@ var DatabaseStorage = class {
       const checklistConferenceSec = confStartLocalSec > 0 && effectiveChecklistEndSec > 0 ? Math.max(0, confStartLocalSec - effectiveChecklistEndSec) : 0;
       const checklistConferenceMin = checklistConferenceSec / 60;
       const referenceEnd = confEndLocalMin > 0 ? confEndLocalMin : effectiveChecklistEnd;
+      const hasPortariaTime = portariaMin > 0;
+      const patioPortariaOverlap = hasPortariaTime && referenceEnd > 0 && portariaMin < referenceEnd;
       const patioPortariaMin = portariaMin > 0 && referenceEnd > 0 ? Math.max(0, portariaMin - referenceEnd) : 0;
       results.push({
         mapa: portaria.mapa,
@@ -41311,12 +41316,17 @@ var DatabaseStorage = class {
         matinalMin,
         matinalPatioMin,
         matPatioOverlap,
+        hasMatinal,
+        hasChecklist,
         checklistMin,
         checklistConferenceMin,
         checklistConferenceSec,
         ckConfOverlap,
+        hasConference,
         conferenceMin,
         patioPortariaMin,
+        patioPortariaOverlap,
+        hasPortariaTime,
         tmlMin: matinalMin + matinalPatioMin + checklistMin + checklistConferenceMin + conferenceMin + patioPortariaMin
       });
     }
