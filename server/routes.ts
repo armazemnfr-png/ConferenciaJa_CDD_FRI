@@ -630,15 +630,22 @@ export async function registerRoutes(
 
   app.patch("/api/metalog/:id/status", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       const { updateMetalogStatusSchema } = await import("@shared/schema");
       const parsed = updateMetalogStatusSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Dados inválidos" });
-      const { status, blockerJustification, actionTaken } = parsed.data;
+      const { status, blockerJustification, actionTaken, rootCauseAssessment, actionAssessment } = parsed.data;
       if (status === "nao_avancou" && !blockerJustification) {
         return res.status(400).json({ message: "Justificativa obrigatória quando 'Não Avançou'." });
       }
-      const updated = await storage.updateMetalogStatus(id, status, blockerJustification, actionTaken);
+      const updated = await storage.updateMetalogStatus(
+        id,
+        status,
+        blockerJustification,
+        actionTaken,
+        rootCauseAssessment,
+        actionAssessment,
+      );
       if (!updated) return res.status(404).json({ message: "Relato não encontrado." });
       res.json(updated);
     } catch (err) {

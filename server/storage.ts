@@ -392,7 +392,7 @@ export class DatabaseStorage implements IStorage {
       byData.get(d)!.push((item.mapa || "").trim().toUpperCase());
     }
 
-    for (const [data, mapas] of byData.entries()) {
+    for (const [data, mapas] of Array.from(byData.entries())) {
       if (mapas.length === 0) continue;
       if (data) {
         // Apaga só os mapas desse dia que serão substituídos
@@ -1024,10 +1024,23 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(metalogEntries).orderBy(desc(metalogEntries.createdAt));
   }
 
-  async updateMetalogStatus(id: number, status: string, blockerJustification?: string | null, actionTaken?: string | null): Promise<MetalogEntry | undefined> {
+  async updateMetalogStatus(
+    id: number,
+    status: string,
+    blockerJustification?: string | null,
+    actionTaken?: string | null,
+    rootCauseAssessment?: string | null,
+    actionAssessment?: string | null,
+  ): Promise<MetalogEntry | undefined> {
     const rows = await db
       .update(metalogEntries)
-      .set({ status, blockerJustification: blockerJustification ?? null, actionTaken: actionTaken ?? null })
+      .set({
+        status,
+        blockerJustification: blockerJustification ?? null,
+        actionTaken: actionTaken ?? null,
+        rootCauseAssessment: rootCauseAssessment ?? null,
+        actionAssessment: actionAssessment ?? null,
+      })
       .where(eq(metalogEntries.id, id))
       .returning();
     return rows[0];
@@ -1037,7 +1050,12 @@ export class DatabaseStorage implements IStorage {
     await db.delete(metalogEntries).where(eq(metalogEntries.id, id));
   }
 
-  async getMetalogStats(): Promise<{ kpiRanking: { kpi: string; count: number }[]; statusCounts: { em_andamento: number; concluida: number; nao_avancou: number } }> {
+  async getMetalogStats(): Promise<{
+    kpiRanking: { kpi: string; count: number }[];
+    statusCounts: { em_andamento: number; concluida: number; nao_avancou: number };
+    rootCauseCounts: { aplicavel: number; nao_aplicavel: number; pendente: number };
+    actionCounts: { aplicavel: number; nao_aplicavel: number; pendente: number };
+  }> {
     const entries = await db.select().from(metalogEntries);
     const kpiMap = new Map<string, number>();
     for (const e of entries) {
@@ -1053,7 +1071,18 @@ export class DatabaseStorage implements IStorage {
       else if (e.status === 'nao_avancou') statusCounts.nao_avancou++;
       else statusCounts.em_andamento++;
     }
-    return { kpiRanking, statusCounts };
+    const rootCauseCounts = { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
+    const actionCounts = { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
+    for (const e of entries) {
+      if (e.rootCauseAssessment === 'aplicavel') rootCauseCounts.aplicavel++;
+      else if (e.rootCauseAssessment === 'nao_aplicavel') rootCauseCounts.nao_aplicavel++;
+      else rootCauseCounts.pendente++;
+
+      if (e.actionAssessment === 'aplicavel') actionCounts.aplicavel++;
+      else if (e.actionAssessment === 'nao_aplicavel') actionCounts.nao_aplicavel++;
+      else actionCounts.pendente++;
+    }
+    return { kpiRanking, statusCounts, rootCauseCounts, actionCounts };
   }
 }
 

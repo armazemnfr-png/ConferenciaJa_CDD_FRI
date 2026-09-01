@@ -115,6 +115,8 @@ export const metalogEntries = pgTable("metalog_entries", {
   status: text("status").notNull().default("em_andamento"),
   blockerJustification: text("blocker_justification"),
   actionTaken: text("action_taken"),
+  rootCauseAssessment: text("root_cause_assessment"),
+  actionAssessment: text("action_assessment"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -126,6 +128,8 @@ export const updateMetalogStatusSchema = z.object({
   status: z.enum(["em_andamento", "concluida", "nao_avancou"]),
   blockerJustification: z.string().nullable().optional(),
   actionTaken: z.string().nullable().optional(),
+  rootCauseAssessment: z.enum(["aplicavel", "nao_aplicavel"]).nullable().optional(),
+  actionAssessment: z.enum(["aplicavel", "nao_aplicavel"]).nullable().optional(),
 });
 
 export const insertKpiResultSchema = createInsertSchema(kpiResults).omit({ id: true, importedAt: true });

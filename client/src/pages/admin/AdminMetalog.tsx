@@ -14,6 +14,11 @@ const STATUS_LABELS: Record<string, { label: string; color: string; icon: any }>
   nao_avancou: { label: "Não Avançou", color: "bg-red-100 text-red-800 border-red-200", icon: XCircle },
 };
 
+const ASSESSMENT_OPTIONS = [
+  { value: "aplicavel", label: "Aplicável", color: "bg-green-100 text-green-800 border-green-200" },
+  { value: "nao_aplicavel", label: "Não aplicável", color: "bg-red-100 text-red-800 border-red-200" },
+] as const;
+
 const BAR_COLORS = ["#7c3aed", "#4f46e5", "#6366f1", "#818cf8", "#a5b4fc", "#c4b5fd", "#ddd6fe", "#ede9fe", "#f5f3ff", "#faf5ff"];
 
 function StatCard({ label, value, total, color, icon: Icon }: { label: string; value: number; total: number; color: string; icon: any }) {
@@ -34,6 +39,8 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
   const [status, setStatus] = useState(entry.status);
   const [justification, setJustification] = useState(entry.blockerJustification ?? "");
   const [actionTaken, setActionTaken] = useState(entry.actionTaken ?? "");
+  const [rootCauseAssessment, setRootCauseAssessment] = useState<string | null>(entry.rootCauseAssessment ?? null);
+  const [actionAssessment, setActionAssessment] = useState<string | null>(entry.actionAssessment ?? null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -44,6 +51,8 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
   const hasChanges =
     status !== entry.status ||
     actionTaken.trim() !== (entry.actionTaken ?? "") ||
+    rootCauseAssessment !== (entry.rootCauseAssessment ?? null) ||
+    actionAssessment !== (entry.actionAssessment ?? null) ||
     (needsJustification && justification.trim() !== (entry.blockerJustification ?? ""));
 
   async function handleSave() {
@@ -60,6 +69,8 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
           status,
           blockerJustification: needsJustification ? justification.trim() : null,
           actionTaken: actionTaken.trim() || null,
+          rootCauseAssessment,
+          actionAssessment,
         }),
       });
       if (res.ok) {
@@ -98,7 +109,7 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
   }
 
   const kpiLabel = entry.kpi === "Outros" && entry.kpiOther ? `Outros: ${entry.kpiOther}` : entry.kpi;
-  const statusInfo = STATUS_LABELS[entry.status] ?? STATUS_LABELS.em_andamento;
+  const statusInfo = STATUS_LABELS[status] ?? STATUS_LABELS.em_andamento;
 
   return (
     <tr className="border-b border-border hover:bg-muted/20 transition-colors align-top">
@@ -125,6 +136,54 @@ function EntryRow({ entry }: { entry: MetalogEntry }) {
       {/* Como resolve? */}
       <td className="px-4 py-3 min-w-[200px] max-w-[260px]">
         <p className="text-sm text-foreground leading-snug">{entry.solution}</p>
+      </td>
+
+      {/* Avaliação de procedência */}
+      <td className="px-4 py-3 min-w-[220px]">
+        <div className="space-y-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+              Causa raiz
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {ASSESSMENT_OPTIONS.map(option => (
+                <button
+                  key={`cause-${option.value}`}
+                  onClick={() => setRootCauseAssessment(option.value)}
+                  data-testid={`button-metalog-cause-${option.value}-${entry.id}`}
+                  className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                    rootCauseAssessment === option.value
+                      ? option.color + " ring-1 ring-offset-1 ring-current"
+                      : "bg-background border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+              Ação proposta
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {ASSESSMENT_OPTIONS.map(option => (
+                <button
+                  key={`action-${option.value}`}
+                  onClick={() => setActionAssessment(option.value)}
+                  data-testid={`button-metalog-action-${option.value}-${entry.id}`}
+                  className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                    actionAssessment === option.value
+                      ? option.color + " ring-1 ring-offset-1 ring-current"
+                      : "bg-background border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </td>
 
       {/* O que foi feito (gestão) */}
@@ -235,6 +294,8 @@ export default function AdminMetalog() {
   const { data: stats } = useQuery<{
     kpiRanking: { kpi: string; count: number }[];
     statusCounts: { em_andamento: number; concluida: number; nao_avancou: number };
+    rootCauseCounts: { aplicavel: number; nao_aplicavel: number; pendente: number };
+    actionCounts: { aplicavel: number; nao_aplicavel: number; pendente: number };
   }>({ queryKey: ["/api/metalog/stats"] });
   const { data: allDrivers = [] } = useQuery<{ name: string }[]>({ queryKey: ["/api/drivers"] });
 
@@ -257,6 +318,12 @@ export default function AdminMetalog() {
   const total = (stats?.statusCounts.em_andamento ?? 0) + (stats?.statusCounts.concluida ?? 0) + (stats?.statusCounts.nao_avancou ?? 0);
   const pctConcluida = total > 0 ? Math.round(((stats?.statusCounts.concluida ?? 0) / total) * 100) : 0;
   const pctNaoAvancou = total > 0 ? Math.round(((stats?.statusCounts.nao_avancou ?? 0) / total) * 100) : 0;
+  const rootCauseCounts = stats?.rootCauseCounts ?? { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
+  const actionCounts = stats?.actionCounts ?? { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
+  const rootCauseEvaluated = rootCauseCounts.aplicavel + rootCauseCounts.nao_aplicavel;
+  const actionEvaluated = actionCounts.aplicavel + actionCounts.nao_aplicavel;
+  const rootCausePct = rootCauseEvaluated > 0 ? Math.round((rootCauseCounts.aplicavel / rootCauseEvaluated) * 100) : 0;
+  const actionPct = actionEvaluated > 0 ? Math.round((actionCounts.aplicavel / actionEvaluated) * 100) : 0;
 
   return (
     <AdminLayout>
@@ -402,6 +469,65 @@ export default function AdminMetalog() {
           )}
         </section>
 
+        {/* Avaliação de procedência */}
+        <section>
+          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            Maturidade dos relatos
+          </h2>
+          <p className="text-xs text-muted-foreground mb-3">
+            A avaliação considera apenas os relatos já classificados. Os pendentes não entram no percentual.
+          </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {[
+              {
+                title: "Identificação da causa raiz",
+                counts: rootCauseCounts,
+                evaluated: rootCauseEvaluated,
+                percentage: rootCausePct,
+              },
+              {
+                title: "Ação proposta",
+                counts: actionCounts,
+                evaluated: actionEvaluated,
+                percentage: actionPct,
+              },
+            ].map(card => (
+              <div key={card.title} className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{card.title}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {card.evaluated} de {entries.length} avaliados
+                    </p>
+                  </div>
+                  <p className="text-2xl font-bold text-[#7c3aed]">
+                    {card.evaluated > 0 ? `${card.percentage}%` : "—"}
+                  </p>
+                </div>
+                <div className="w-full h-3 rounded-full bg-muted overflow-hidden flex mb-3">
+                  <div className="h-full bg-green-500 transition-all" style={{ width: `${card.evaluated > 0 ? (card.counts.aplicavel / card.evaluated) * 100 : 0}%` }} />
+                  <div className="h-full bg-red-500 transition-all" style={{ width: `${card.evaluated > 0 ? (card.counts.nao_aplicavel / card.evaluated) * 100 : 0}%` }} />
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
+                    Aplicável / procedente: {card.counts.aplicavel}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
+                    Não aplicável: {card.counts.nao_aplicavel}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/40 inline-block" />
+                    Pendente: {card.counts.pendente}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* Ranking de KPIs */}
         {(stats?.kpiRanking?.length ?? 0) > 0 && (
           <section>
@@ -469,6 +595,7 @@ export default function AdminMetalog() {
                       <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">KPI</th>
                       <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Por que não bate?</th>
                       <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Como resolve?</th>
+                       <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Procedência</th>
                       <th className="px-4 py-3 text-xs font-bold text-[#7c3aed] uppercase tracking-wide whitespace-nowrap flex items-center gap-1">
                         <PenLine className="w-3.5 h-3.5" />
                         O que foi feito (gestão)

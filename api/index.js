@@ -40852,13 +40852,17 @@ var init_schema2 = __esm({
       status: text("status").notNull().default("em_andamento"),
       blockerJustification: text("blocker_justification"),
       actionTaken: text("action_taken"),
+      rootCauseAssessment: text("root_cause_assessment"),
+      actionAssessment: text("action_assessment"),
       createdAt: timestamp("created_at").defaultNow()
     });
     insertMetalogEntrySchema = createInsertSchema(metalogEntries).omit({ id: true, createdAt: true });
     updateMetalogStatusSchema = z.object({
       status: z.enum(["em_andamento", "concluida", "nao_avancou"]),
       blockerJustification: z.string().nullable().optional(),
-      actionTaken: z.string().nullable().optional()
+      actionTaken: z.string().nullable().optional(),
+      rootCauseAssessment: z.enum(["aplicavel", "nao_aplicavel"]).nullable().optional(),
+      actionAssessment: z.enum(["aplicavel", "nao_aplicavel"]).nullable().optional()
     });
     insertKpiResultSchema = createInsertSchema(kpiResults).omit({ id: true, importedAt: true });
     uploadMeta = pgTable("upload_meta", {
@@ -41191,7 +41195,7 @@ var DatabaseStorage = class {
       if (!byData.has(d)) byData.set(d, []);
       byData.get(d).push((item.mapa || "").trim().toUpperCase());
     }
-    for (const [data, mapas] of byData.entries()) {
+    for (const [data, mapas] of Array.from(byData.entries())) {
       if (mapas.length === 0) continue;
       if (data) {
         await db.execute(
@@ -41653,8 +41657,14 @@ var DatabaseStorage = class {
   async getMetalogEntries() {
     return db.select().from(metalogEntries).orderBy(desc(metalogEntries.createdAt));
   }
-  async updateMetalogStatus(id, status, blockerJustification, actionTaken) {
-    const rows = await db.update(metalogEntries).set({ status, blockerJustification: blockerJustification ?? null, actionTaken: actionTaken ?? null }).where(eq(metalogEntries.id, id)).returning();
+  async updateMetalogStatus(id, status, blockerJustification, actionTaken, rootCauseAssessment, actionAssessment) {
+    const rows = await db.update(metalogEntries).set({
+      status,
+      blockerJustification: blockerJustification ?? null,
+      actionTaken: actionTaken ?? null,
+      rootCauseAssessment: rootCauseAssessment ?? null,
+      actionAssessment: actionAssessment ?? null
+    }).where(eq(metalogEntries.id, id)).returning();
     return rows[0];
   }
   async deleteMetalogEntry(id) {
@@ -41674,7 +41684,17 @@ var DatabaseStorage = class {
       else if (e.status === "nao_avancou") statusCounts.nao_avancou++;
       else statusCounts.em_andamento++;
     }
-    return { kpiRanking, statusCounts };
+    const rootCauseCounts = { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
+    const actionCounts = { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
+    for (const e of entries) {
+      if (e.rootCauseAssessment === "aplicavel") rootCauseCounts.aplicavel++;
+      else if (e.rootCauseAssessment === "nao_aplicavel") rootCauseCounts.nao_aplicavel++;
+      else rootCauseCounts.pendente++;
+      if (e.actionAssessment === "aplicavel") actionCounts.aplicavel++;
+      else if (e.actionAssessment === "nao_aplicavel") actionCounts.nao_aplicavel++;
+      else actionCounts.pendente++;
+    }
+    return { kpiRanking, statusCounts, rootCauseCounts, actionCounts };
   }
 };
 var storage = new DatabaseStorage();
@@ -42352,15 +42372,22 @@ async function registerRoutes(httpServer2, app2) {
   });
   app2.patch("/api/metalog/:id/status", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       const { updateMetalogStatusSchema: updateMetalogStatusSchema2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const parsed = updateMetalogStatusSchema2.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Dados inv\xE1lidos" });
-      const { status, blockerJustification, actionTaken } = parsed.data;
+      const { status, blockerJustification, actionTaken, rootCauseAssessment, actionAssessment } = parsed.data;
       if (status === "nao_avancou" && !blockerJustification) {
         return res.status(400).json({ message: "Justificativa obrigat\xF3ria quando 'N\xE3o Avan\xE7ou'." });
       }
-      const updated = await storage.updateMetalogStatus(id, status, blockerJustification, actionTaken);
+      const updated = await storage.updateMetalogStatus(
+        id,
+        status,
+        blockerJustification,
+        actionTaken,
+        rootCauseAssessment,
+        actionAssessment
+      );
       if (!updated) return res.status(404).json({ message: "Relato n\xE3o encontrado." });
       res.json(updated);
     } catch (err) {
