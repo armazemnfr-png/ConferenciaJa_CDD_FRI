@@ -421,10 +421,23 @@ export default function AdminMetalog() {
 
   const [monitorSearch, setMonitorSearch] = useState("");
 
-  // Nomes únicos que já comentaram (normalizado para comparação)
-  const commentedNames = new Set(
-    entries.map(e => e.name.trim().toUpperCase())
-  );
+  const normalizePersonName = (name: string) =>
+    name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toUpperCase();
+
+  // Uma pessoa pode enviar mais de um relato. O monitoramento conta pessoas,
+  // enquanto a listagem de relatos continua mostrando cada registro abaixo.
+  const reporterCounts = new Map<string, { name: string; count: number }>();
+  entries.forEach(entry => {
+    const key = normalizePersonName(entry.name);
+    const current = reporterCounts.get(key);
+    reporterCounts.set(key, { name: current?.name ?? entry.name, count: (current?.count ?? 0) + 1 });
+  });
+  const commentedNames = new Set(reporterCounts.keys());
 
   // Filtrar colaboradores por busca
   const driversFiltered = allDrivers.filter(d =>
@@ -432,8 +445,19 @@ export default function AdminMetalog() {
     d.name.toLowerCase().includes(monitorSearch.toLowerCase())
   );
 
-  const commented = driversFiltered.filter(d => commentedNames.has(d.name.trim().toUpperCase()));
-  const notCommented = driversFiltered.filter(d => !commentedNames.has(d.name.trim().toUpperCase()));
+  // Mostra todos que enviaram relato, inclusive se o nome ainda não estiver na base MOT.
+  const commented = Array.from(reporterCounts.values())
+    .filter(({ name }) =>
+      monitorSearch.trim() === "" ||
+      name.toLowerCase().includes(monitorSearch.toLowerCase())
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const notCommented = driversFiltered.filter(d => !commentedNames.has(normalizePersonName(d.name)));
+  const registeredNames = new Set(allDrivers.map(d => normalizePersonName(d.name)));
+  const participantTotal = new Set([
+    ...Array.from(registeredNames),
+    ...Array.from(commentedNames),
+  ]).size;
 
   const total = (stats?.statusCounts.em_andamento ?? 0) + (stats?.statusCounts.concluida ?? 0) + (stats?.statusCounts.nao_avancou ?? 0);
   const pctConcluida = total > 0 ? Math.round(((stats?.statusCounts.concluida ?? 0) / total) * 100) : 0;
@@ -466,23 +490,26 @@ export default function AdminMetalog() {
           </h2>
 
           {/* Barra de progresso geral */}
-          {allDrivers.length > 0 && (
+          {participantTotal > 0 && (
             <div className="bg-card rounded-2xl border border-border p-5 mb-4">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-semibold text-foreground">Colaboradores que já comentaram</p>
                 <p className="text-2xl font-bold text-[#7c3aed]">
-                  {commentedNames.size}/{allDrivers.length}
+                  {commentedNames.size}/{participantTotal}
                   <span className="text-sm font-normal text-muted-foreground ml-1">
-                    ({allDrivers.length > 0 ? Math.round((commentedNames.size / allDrivers.length) * 100) : 0}%)
+                    ({participantTotal > 0 ? Math.round((commentedNames.size / participantTotal) * 100) : 0}%)
                   </span>
                 </p>
               </div>
               <div className="w-full h-3 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full bg-[#7c3aed] transition-all rounded-full"
-                  style={{ width: `${allDrivers.length > 0 ? (commentedNames.size / allDrivers.length) * 100 : 0}%` }}
+                  style={{ width: `${participantTotal > 0 ? Math.min(100, (commentedNames.size / participantTotal) * 100) : 0}%` }}
                 />
               </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                {entries.length} {entries.length === 1 ? "relato enviado" : "relatos enviados"} por {commentedNames.size} {commentedNames.size === 1 ? "pessoa" : "pessoas"}.
+              </p>
             </div>
           )}
 
@@ -545,10 +572,15 @@ export default function AdminMetalog() {
                     Nenhum ainda
                   </li>
                 ) : (
-                  commented.map(d => (
-                    <li key={d.name} className="px-4 py-2.5 text-sm text-foreground flex items-center gap-2">
+                  commented.map(({ name, count }) => (
+                    <li key={name} className="px-4 py-2.5 text-sm text-foreground flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                      {d.name}
+                      <span className="truncate">{name}</span>
+                      {count > 1 && (
+                        <span className="ml-auto shrink-0 text-[11px] font-semibold text-green-700 bg-green-100 border border-green-200 rounded-full px-2 py-0.5">
+                          {count} relatos
+                        </span>
+                      )}
                     </li>
                   ))
                 )}
