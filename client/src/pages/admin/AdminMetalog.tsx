@@ -468,6 +468,9 @@ export default function AdminMetalog() {
   const actionEvaluated = actionCounts.aplicavel + actionCounts.nao_aplicavel;
   const rootCausePct = rootCauseEvaluated > 0 ? Math.round((rootCauseCounts.aplicavel / rootCauseEvaluated) * 100) : 0;
   const actionPct = actionEvaluated > 0 ? Math.round((actionCounts.aplicavel / actionEvaluated) * 100) : 0;
+  const entriesForDisplay = [...entries].sort((a, b) =>
+    Number(a.status === "concluida") - Number(b.status === "concluida")
+  );
 
   return (
     <AdminLayout>
@@ -725,6 +728,9 @@ export default function AdminMetalog() {
           <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3">
             Histórico de Relatos ({entries.length})
           </h2>
+            <p className="text-xs text-muted-foreground mb-3">
+              Relatos em tratamento aparecem primeiro; os concluídos ficam no final.
+            </p>
 
           {isLoading ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -757,7 +763,7 @@ export default function AdminMetalog() {
                     </tr>
                   </thead>
                   <tbody>
-                    {entries.map(entry => (
+                    {entriesForDisplay.map(entry => (
                       <EntryRow key={entry.id} entry={entry} />
                     ))}
                   </tbody>
