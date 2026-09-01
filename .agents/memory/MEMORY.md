@@ -1,1 +1,2 @@
 - [Adherence per-room matrícula resolution](adherence-room-matricula.md) — resolved driver registration must be reused for room lookup too, not just name lookup, or per-room totals undercount.
+- [METALOG evidence storage](metalog-evidence-storage.md) — apply schema changes to the app's active database and avoid destructive syncs when legacy columns exist.
