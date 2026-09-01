@@ -40968,6 +40968,14 @@ function tmlParseDt(dtOper) {
   if (m2) return new Date(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]));
   return null;
 }
+function tmlDateKey(value) {
+  const text2 = (value || "").trim();
+  const br = text2.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (br) return `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`;
+  const iso = text2.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  return "";
+}
 function tmlTimeToMin(t) {
   if (!t) return 0;
   const dtMatch = t.match(/(\d{1,2}):(\d{2})(?::\d{2})?$/);
@@ -41234,8 +41242,14 @@ var DatabaseStorage = class {
     const portariaList = await this.getPortariaData();
     const ginfoAll = await db.select().from(ginfoChecklist);
     const matinalAll = await db.select().from(matinals);
-    const ginfoByMapa = /* @__PURE__ */ new Map();
-    [...ginfoAll].reverse().forEach((g) => ginfoByMapa.set(g.mapa.trim().toUpperCase(), g));
+    const ginfoByMapaEData = /* @__PURE__ */ new Map();
+    const ginfoLatestByMapa = /* @__PURE__ */ new Map();
+    [...ginfoAll].sort((a, b) => a.id - b.id).forEach((g) => {
+      const mapaKey = g.mapa.trim().toUpperCase();
+      ginfoLatestByMapa.set(mapaKey, g);
+      const dateKey = tmlDateKey(g.data);
+      if (dateKey) ginfoByMapaEData.set(`${mapaKey}|${dateKey}`, g);
+    });
     const allConfs = await db.select().from(conferences);
     const confByMap = /* @__PURE__ */ new Map();
     for (const c of allConfs) {
@@ -41247,7 +41261,9 @@ var DatabaseStorage = class {
     }
     const results = [];
     for (const portaria of portariaList) {
-      const ginfo = ginfoByMapa.get(portaria.mapa.trim().toUpperCase());
+      const mapaKey = portaria.mapa.trim().toUpperCase();
+      const dateKey = tmlDateKey(portaria.dtOper);
+      const ginfo = (dateKey ? ginfoByMapaEData.get(`${mapaKey}|${dateKey}`) : void 0) ?? ginfoLatestByMapa.get(mapaKey);
       const portariaDate = tmlParseDt(portaria.dtOper);
       const sala = ginfo?.equipe || portaria.sala || "";
       const matchingMatinal = portariaDate ? matinalAll.find((m) => {

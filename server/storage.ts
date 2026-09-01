@@ -41,6 +41,14 @@ function tmlParseDt(dtOper: string): Date | null {
   if (m2) return new Date(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]));
   return null;
 }
+function tmlDateKey(value: string | null | undefined): string {
+  const text = (value || "").trim();
+  const br = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (br) return `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`;
+  const iso = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  return "";
+}
 function tmlTimeToMin(t: string): number {
   if (!t) return 0;
   // Suporta "DD/MM/YYYY HH:MM" e "HH:MM" e "HH:MM:SS"
@@ -439,9 +447,19 @@ export class DatabaseStorage implements IStorage {
     const ginfoAll = await db.select().from(ginfoChecklist);
     const matinalAll = await db.select().from(matinals);
 
-    // Índice ginfo por mapa (pega o mais recente)
-    const ginfoByMapa = new Map<string, GinfoChecklist>();
-    [...ginfoAll].reverse().forEach(g => ginfoByMapa.set(g.mapa.trim().toUpperCase(), g));
+    // Índices do GINFO por mapa+data e por mapa como fallback.
+    // O mesmo mapa pode existir em dias diferentes; o TML deve usar o checklist
+    // do dia da saída, não simplesmente o último checklist importado.
+    const ginfoByMapaEData = new Map<string, GinfoChecklist>();
+    const ginfoLatestByMapa = new Map<string, GinfoChecklist>();
+    [...ginfoAll]
+      .sort((a, b) => a.id - b.id)
+      .forEach(g => {
+        const mapaKey = g.mapa.trim().toUpperCase();
+        ginfoLatestByMapa.set(mapaKey, g);
+        const dateKey = tmlDateKey(g.data);
+        if (dateKey) ginfoByMapaEData.set(`${mapaKey}|${dateKey}`, g);
+      });
 
     // Índice de conferências por mapa para o tempo de conferência
     const allConfs = await db.select().from(conferences);
@@ -457,7 +475,10 @@ export class DatabaseStorage implements IStorage {
     const results: TmlRecord[] = [];
 
     for (const portaria of portariaList) {
-      const ginfo = ginfoByMapa.get(portaria.mapa.trim().toUpperCase());
+      const mapaKey = portaria.mapa.trim().toUpperCase();
+      const dateKey = tmlDateKey(portaria.dtOper);
+      const ginfo = (dateKey ? ginfoByMapaEData.get(`${mapaKey}|${dateKey}`) : undefined)
+        ?? ginfoLatestByMapa.get(mapaKey);
 
       const portariaDate = tmlParseDt(portaria.dtOper);
 
