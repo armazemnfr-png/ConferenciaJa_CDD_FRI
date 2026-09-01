@@ -41197,13 +41197,14 @@ var DatabaseStorage = class {
     }
     for (const [data, mapas] of Array.from(byData.entries())) {
       if (mapas.length === 0) continue;
+      const mapList = sql.join(mapas.map((mapa) => sql`${mapa}`), sql`, `);
       if (data) {
         await db.execute(
-          sql`DELETE FROM ginfo_checklist WHERE data = ${data} AND upper(trim(mapa)) = ANY(${mapas}::text[])`
+          sql`DELETE FROM ginfo_checklist WHERE data = ${data} AND upper(trim(mapa)) IN (${mapList})`
         );
       } else {
         await db.execute(
-          sql`DELETE FROM ginfo_checklist WHERE data IS NULL AND upper(trim(mapa)) = ANY(${mapas}::text[])`
+          sql`DELETE FROM ginfo_checklist WHERE data IS NULL AND upper(trim(mapa)) IN (${mapList})`
         );
       }
     }
