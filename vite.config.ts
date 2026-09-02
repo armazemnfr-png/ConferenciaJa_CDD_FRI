@@ -51,6 +51,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2,ttf,eot}'],
+        // Rotas de API devem chegar ao Express/Vercel, nunca ao fallback do SPA.
+        navigateFallbackDenylist: [/^\/api(?:\/|$)/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\//,
