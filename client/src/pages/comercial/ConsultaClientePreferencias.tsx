@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ArrowLeft, Download, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,17 +13,20 @@ import {
   type FormValues,
 } from "./ClientePreferenciasForm";
 import { PageHeader, PageShell } from "./ClientePreferencias";
+import SaveSuccessScreen from "./SaveSuccessScreen";
 
 const preferencesUrl = "/api/comercial/cliente-preferencias";
 
 export default function ConsultaClientePreferencias() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [codigoBusca, setCodigoBusca] = useState("");
   const [record, setRecord] = useState<CustomerPreference | null>(null);
   const [formKey, setFormKey] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,15 +77,7 @@ export default function ConsultaClientePreferencias() {
       setRecord(saved);
       setCodigoBusca(saved.codigoPdv);
       setFormKey((current) => current + 1);
-      toast({
-        title: "Salvo com sucesso!",
-        description: (
-          <span className="flex items-center gap-2">
-            <span>Por mais razões para brindar</span>
-            <span className="text-2xl leading-none" role="img" aria-label="Dois copos de cerveja brindando">🍻</span>
-          </span>
-        ),
-      });
+      setShowSuccess(true);
     } finally {
       setIsSaving(false);
     }
@@ -108,6 +103,10 @@ export default function ConsultaClientePreferencias() {
     } finally {
       setIsExporting(false);
     }
+  }
+
+  if (showSuccess) {
+    return <SaveSuccessScreen onReturn={() => setLocation("/comercial")} />;
   }
 
   return (

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ArrowLeft, ClipboardList, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -10,27 +10,22 @@ import {
   downloadCustomerPreferencesCsv,
   type FormValues,
 } from "./ClientePreferenciasForm";
+import SaveSuccessScreen from "./SaveSuccessScreen";
 
 const preferencesUrl = "/api/comercial/cliente-preferencias";
 
 export default function ClientePreferencias() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   async function handleSave(values: FormValues) {
     setIsSaving(true);
     try {
       await apiRequest("POST", preferencesUrl, values);
-      toast({
-        title: "Salvo com sucesso!",
-        description: (
-          <span className="flex items-center gap-2">
-            <span>Por mais razões para brindar</span>
-            <span className="text-2xl leading-none" role="img" aria-label="Dois copos de cerveja brindando">🍻</span>
-          </span>
-        ),
-      });
+      setShowSuccess(true);
     } finally {
       setIsSaving(false);
     }
@@ -56,6 +51,10 @@ export default function ClientePreferencias() {
     } finally {
       setIsExporting(false);
     }
+  }
+
+  if (showSuccess) {
+    return <SaveSuccessScreen onReturn={() => setLocation("/comercial")} />;
   }
 
   return (

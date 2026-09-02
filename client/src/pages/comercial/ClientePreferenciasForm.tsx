@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import type { CustomerPreference } from "@shared/schema";
 
-export const diasDaSemana = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"] as const;
+export const diasDaSemana = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"] as const;
 
 export const horarios = [
   "08:00 às 18:00 (recebe horário de almoço)",
