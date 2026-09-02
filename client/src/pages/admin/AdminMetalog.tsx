@@ -194,63 +194,15 @@ function EntryRow({ entry }: { entry: MetalogEntrySummary }) {
         <p className="text-sm text-foreground leading-snug">{entry.solution}</p>
       </td>
 
-      {/* Avaliação de procedência */}
-      <td className="px-4 py-3 min-w-[220px]">
-        <div className="space-y-3">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-              Causa raiz
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {ASSESSMENT_OPTIONS.map(option => (
-                <button
-                  key={`cause-${option.value}`}
-                  onClick={() => setRootCauseAssessment(option.value)}
-                  data-testid={`button-metalog-cause-${option.value}-${entry.id}`}
-                  className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                    rootCauseAssessment === option.value
-                      ? option.color + " ring-1 ring-offset-1 ring-current"
-                      : "bg-background border-border text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-              Ação proposta
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {ASSESSMENT_OPTIONS.map(option => (
-                <button
-                  key={`action-${option.value}`}
-                  onClick={() => setActionAssessment(option.value)}
-                  data-testid={`button-metalog-action-${option.value}-${entry.id}`}
-                  className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                    actionAssessment === option.value
-                      ? option.color + " ring-1 ring-offset-1 ring-current"
-                      : "bg-background border-border text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </td>
-
       {/* O que foi feito (gestão) */}
-      <td className="px-4 py-3 min-w-[200px]">
+      <td className="px-4 py-3 min-w-[300px] max-w-[460px]">
         <textarea
           value={actionTaken}
           onChange={e => setActionTaken(e.target.value)}
           placeholder="O que foi feito..."
           data-testid={`textarea-metalog-action-${entry.id}`}
-          rows={2}
-          className="w-full px-2.5 py-2 text-sm rounded-lg border-2 border-[#7c3aed]/25 focus:border-[#7c3aed] focus:outline-none resize-none bg-white placeholder:text-muted-foreground/40 transition-all min-w-[180px]"
+          rows={4}
+          className="w-full px-2.5 py-2 text-sm rounded-lg border-2 border-[#7c3aed]/25 focus:border-[#7c3aed] focus:outline-none resize-y bg-white placeholder:text-muted-foreground/40 transition-all min-w-[260px]"
         />
         <div className="mt-2 space-y-1.5">
           <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#7c3aed]/25 text-xs font-semibold text-[#7c3aed] hover:bg-[#7c3aed]/5 cursor-pointer transition-colors">
@@ -340,6 +292,53 @@ function EntryRow({ entry }: { entry: MetalogEntrySummary }) {
                 {val.label}
               </button>
             ))}
+          </div>
+
+          {/* Avaliações abaixo das etapas de status */}
+          <div className="mt-3 pt-3 border-t border-border/70 space-y-2.5">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+              Procedente?
+            </p>
+            <div className="space-y-2">
+              <div>
+                <p className="text-[11px] text-muted-foreground mb-1">Causa raiz</p>
+                <div className="flex flex-wrap gap-1">
+                  {ASSESSMENT_OPTIONS.map(option => (
+                    <button
+                      key={`cause-${option.value}`}
+                      onClick={() => setRootCauseAssessment(option.value)}
+                      data-testid={`button-metalog-cause-${option.value}-${entry.id}`}
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                        rootCauseAssessment === option.value
+                          ? option.color + " ring-1 ring-offset-1 ring-current"
+                          : "bg-background border-border text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground mb-1">Ação proposta</p>
+                <div className="flex flex-wrap gap-1">
+                  {ASSESSMENT_OPTIONS.map(option => (
+                    <button
+                      key={`action-${option.value}`}
+                      onClick={() => setActionAssessment(option.value)}
+                      data-testid={`button-metalog-action-${option.value}-${entry.id}`}
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                        actionAssessment === option.value
+                          ? option.color + " ring-1 ring-offset-1 ring-current"
+                          : "bg-background border-border text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
           {needsJustification && (
@@ -753,7 +752,6 @@ export default function AdminMetalog() {
                       <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">KPI</th>
                       <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Por que não bate?</th>
                       <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Como resolve?</th>
-                       <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Procedência</th>
                       <th className="px-4 py-3 text-xs font-bold text-[#7c3aed] uppercase tracking-wide whitespace-nowrap flex items-center gap-1">
                         <PenLine className="w-3.5 h-3.5" />
                         O que foi feito (gestão)
