@@ -41760,17 +41760,14 @@ var DatabaseStorage = class {
       else if (e.status === "nao_avancou") statusCounts.nao_avancou++;
       else statusCounts.em_andamento++;
     }
-    const rootCauseCounts = { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
-    const actionCounts = { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
+    const procedentCounts = { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
     for (const e of entries) {
-      if (e.rootCauseAssessment === "aplicavel") rootCauseCounts.aplicavel++;
-      else if (e.rootCauseAssessment === "nao_aplicavel") rootCauseCounts.nao_aplicavel++;
-      else rootCauseCounts.pendente++;
-      if (e.actionAssessment === "aplicavel") actionCounts.aplicavel++;
-      else if (e.actionAssessment === "nao_aplicavel") actionCounts.nao_aplicavel++;
-      else actionCounts.pendente++;
+      const procedentAssessment = e.rootCauseAssessment ?? e.actionAssessment;
+      if (procedentAssessment === "aplicavel") procedentCounts.aplicavel++;
+      else if (procedentAssessment === "nao_aplicavel") procedentCounts.nao_aplicavel++;
+      else procedentCounts.pendente++;
     }
-    return { kpiRanking, statusCounts, rootCauseCounts, actionCounts };
+    return { kpiRanking, statusCounts, procedentCounts };
   }
 };
 var storage = new DatabaseStorage();

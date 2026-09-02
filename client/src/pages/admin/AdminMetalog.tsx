@@ -62,8 +62,11 @@ function EntryRow({ entry }: { entry: MetalogEntrySummary }) {
   const [status, setStatus] = useState(entry.status);
   const [justification, setJustification] = useState(entry.blockerJustification ?? "");
   const [actionTaken, setActionTaken] = useState(entry.actionTaken ?? "");
-  const [rootCauseAssessment, setRootCauseAssessment] = useState<string | null>(entry.rootCauseAssessment ?? null);
-  const [actionAssessment, setActionAssessment] = useState<string | null>(entry.actionAssessment ?? null);
+  // Usa uma única avaliação na interface. Os campos antigos continuam sendo
+  // lidos para preservar os relatos já salvos e são sincronizados ao salvar.
+  const [procedentAssessment, setProcedentAssessment] = useState<string | null>(
+    entry.rootCauseAssessment ?? entry.actionAssessment ?? null
+  );
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [removeEvidence, setRemoveEvidence] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -73,11 +76,11 @@ function EntryRow({ entry }: { entry: MetalogEntrySummary }) {
   const { toast } = useToast();
 
   const needsJustification = status === "nao_avancou";
+  const savedProcedentAssessment = entry.rootCauseAssessment ?? entry.actionAssessment ?? null;
   const hasChanges =
     status !== entry.status ||
     actionTaken.trim() !== (entry.actionTaken ?? "") ||
-    rootCauseAssessment !== (entry.rootCauseAssessment ?? null) ||
-    actionAssessment !== (entry.actionAssessment ?? null) ||
+    procedentAssessment !== savedProcedentAssessment ||
     (needsJustification && justification.trim() !== (entry.blockerJustification ?? "")) ||
     evidenceFile !== null ||
     removeEvidence;
@@ -124,8 +127,9 @@ function EntryRow({ entry }: { entry: MetalogEntrySummary }) {
           status,
           blockerJustification: needsJustification ? justification.trim() : null,
           actionTaken: actionTaken.trim() || null,
-          rootCauseAssessment,
-          actionAssessment,
+          // Mantém compatibilidade com os campos históricos do banco.
+          rootCauseAssessment: procedentAssessment,
+          actionAssessment: procedentAssessment,
           ...(evidenceFile || removeEvidence ? { evidence } : {}),
         }),
       });
@@ -299,45 +303,21 @@ function EntryRow({ entry }: { entry: MetalogEntrySummary }) {
             <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
               Procedente?
             </p>
-            <div className="space-y-2">
-              <div>
-                <p className="text-[11px] text-muted-foreground mb-1">Causa raiz</p>
-                <div className="flex flex-wrap gap-1">
-                  {ASSESSMENT_OPTIONS.map(option => (
-                    <button
-                      key={`cause-${option.value}`}
-                      onClick={() => setRootCauseAssessment(option.value)}
-                      data-testid={`button-metalog-cause-${option.value}-${entry.id}`}
-                      className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                        rootCauseAssessment === option.value
-                          ? option.color + " ring-1 ring-offset-1 ring-current"
-                          : "bg-background border-border text-muted-foreground hover:bg-muted"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground mb-1">Ação proposta</p>
-                <div className="flex flex-wrap gap-1">
-                  {ASSESSMENT_OPTIONS.map(option => (
-                    <button
-                      key={`action-${option.value}`}
-                      onClick={() => setActionAssessment(option.value)}
-                      data-testid={`button-metalog-action-${option.value}-${entry.id}`}
-                      className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                        actionAssessment === option.value
-                          ? option.color + " ring-1 ring-offset-1 ring-current"
-                          : "bg-background border-border text-muted-foreground hover:bg-muted"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            <div className="flex flex-wrap gap-1">
+              {ASSESSMENT_OPTIONS.map(option => (
+                <button
+                  key={`procedent-${option.value}`}
+                  onClick={() => setProcedentAssessment(option.value)}
+                  data-testid={`button-metalog-procedent-${option.value}-${entry.id}`}
+                  className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                    procedentAssessment === option.value
+                      ? option.color + " ring-1 ring-offset-1 ring-current"
+                      : "bg-background border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -413,8 +393,7 @@ export default function AdminMetalog() {
   const { data: stats } = useQuery<{
     kpiRanking: { kpi: string; count: number }[];
     statusCounts: { em_andamento: number; concluida: number; nao_avancou: number };
-    rootCauseCounts: { aplicavel: number; nao_aplicavel: number; pendente: number };
-    actionCounts: { aplicavel: number; nao_aplicavel: number; pendente: number };
+    procedentCounts: { aplicavel: number; nao_aplicavel: number; pendente: number };
   }>({ queryKey: ["/api/metalog/stats"] });
   const { data: allDrivers = [] } = useQuery<{ name: string }[]>({ queryKey: ["/api/drivers"] });
 
@@ -461,12 +440,9 @@ export default function AdminMetalog() {
   const total = (stats?.statusCounts.em_andamento ?? 0) + (stats?.statusCounts.concluida ?? 0) + (stats?.statusCounts.nao_avancou ?? 0);
   const pctConcluida = total > 0 ? Math.round(((stats?.statusCounts.concluida ?? 0) / total) * 100) : 0;
   const pctNaoAvancou = total > 0 ? Math.round(((stats?.statusCounts.nao_avancou ?? 0) / total) * 100) : 0;
-  const rootCauseCounts = stats?.rootCauseCounts ?? { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
-  const actionCounts = stats?.actionCounts ?? { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
-  const rootCauseEvaluated = rootCauseCounts.aplicavel + rootCauseCounts.nao_aplicavel;
-  const actionEvaluated = actionCounts.aplicavel + actionCounts.nao_aplicavel;
-  const rootCausePct = rootCauseEvaluated > 0 ? Math.round((rootCauseCounts.aplicavel / rootCauseEvaluated) * 100) : 0;
-  const actionPct = actionEvaluated > 0 ? Math.round((actionCounts.aplicavel / actionEvaluated) * 100) : 0;
+  const procedentCounts = stats?.procedentCounts ?? { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
+  const procedentEvaluated = procedentCounts.aplicavel + procedentCounts.nao_aplicavel;
+  const procedentPct = procedentEvaluated > 0 ? Math.round((procedentCounts.aplicavel / procedentEvaluated) * 100) : 0;
   const entriesForDisplay = [...entries].sort((a, b) =>
     Number(a.status === "concluida") - Number(b.status === "concluida")
   );
@@ -627,58 +603,41 @@ export default function AdminMetalog() {
         <section>
           <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4" />
-            Maturidade dos relatos
+            Procedência dos relatos
           </h2>
           <p className="text-xs text-muted-foreground mb-3">
             A avaliação considera apenas os relatos já classificados. Os pendentes não entram no percentual.
           </p>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {[
-              {
-                title: "Identificação da causa raiz",
-                counts: rootCauseCounts,
-                evaluated: rootCauseEvaluated,
-                percentage: rootCausePct,
-              },
-              {
-                title: "Ação proposta",
-                counts: actionCounts,
-                evaluated: actionEvaluated,
-                percentage: actionPct,
-              },
-            ].map(card => (
-              <div key={card.title} className="bg-card rounded-2xl border border-border p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{card.title}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {card.evaluated} de {entries.length} avaliados
-                    </p>
-                  </div>
-                  <p className="text-2xl font-bold text-[#7c3aed]">
-                    {card.evaluated > 0 ? `${card.percentage}%` : "—"}
-                  </p>
-                </div>
-                <div className="w-full h-3 rounded-full bg-muted overflow-hidden flex mb-3">
-                  <div className="h-full bg-green-500 transition-all" style={{ width: `${card.evaluated > 0 ? (card.counts.aplicavel / card.evaluated) * 100 : 0}%` }} />
-                  <div className="h-full bg-red-500 transition-all" style={{ width: `${card.evaluated > 0 ? (card.counts.nao_aplicavel / card.evaluated) * 100 : 0}%` }} />
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
-                    Aplicável / procedente: {card.counts.aplicavel}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
-                    Não aplicável: {card.counts.nao_aplicavel}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/40 inline-block" />
-                    Pendente: {card.counts.pendente}
-                  </span>
-                </div>
+          <div className="bg-card rounded-2xl border border-border p-5 shadow-sm max-w-2xl">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Procedente?</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {procedentEvaluated} de {entries.length} avaliados
+                </p>
               </div>
-            ))}
+              <p className="text-2xl font-bold text-[#7c3aed]">
+                {procedentEvaluated > 0 ? `${procedentPct}%` : "—"}
+              </p>
+            </div>
+            <div className="w-full h-3 rounded-full bg-muted overflow-hidden flex mb-3">
+              <div className="h-full bg-green-500 transition-all" style={{ width: `${procedentEvaluated > 0 ? (procedentCounts.aplicavel / procedentEvaluated) * 100 : 0}%` }} />
+              <div className="h-full bg-red-500 transition-all" style={{ width: `${procedentEvaluated > 0 ? (procedentCounts.nao_aplicavel / procedentEvaluated) * 100 : 0}%` }} />
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
+                Aplicável: {procedentCounts.aplicavel}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
+                Não aplicável: {procedentCounts.nao_aplicavel}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/40 inline-block" />
+                Pendente: {procedentCounts.pendente}
+              </span>
+            </div>
           </div>
         </section>
 

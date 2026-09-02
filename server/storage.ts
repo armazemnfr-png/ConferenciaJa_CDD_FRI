@@ -1166,8 +1166,7 @@ export class DatabaseStorage implements IStorage {
   async getMetalogStats(): Promise<{
     kpiRanking: { kpi: string; count: number }[];
     statusCounts: { em_andamento: number; concluida: number; nao_avancou: number };
-    rootCauseCounts: { aplicavel: number; nao_aplicavel: number; pendente: number };
-    actionCounts: { aplicavel: number; nao_aplicavel: number; pendente: number };
+    procedentCounts: { aplicavel: number; nao_aplicavel: number; pendente: number };
   }> {
     const entries = await db.select().from(metalogEntries);
     const kpiMap = new Map<string, number>();
@@ -1184,18 +1183,15 @@ export class DatabaseStorage implements IStorage {
       else if (e.status === 'nao_avancou') statusCounts.nao_avancou++;
       else statusCounts.em_andamento++;
     }
-    const rootCauseCounts = { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
-    const actionCounts = { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
+    const procedentCounts = { aplicavel: 0, nao_aplicavel: 0, pendente: 0 };
     for (const e of entries) {
-      if (e.rootCauseAssessment === 'aplicavel') rootCauseCounts.aplicavel++;
-      else if (e.rootCauseAssessment === 'nao_aplicavel') rootCauseCounts.nao_aplicavel++;
-      else rootCauseCounts.pendente++;
-
-      if (e.actionAssessment === 'aplicavel') actionCounts.aplicavel++;
-      else if (e.actionAssessment === 'nao_aplicavel') actionCounts.nao_aplicavel++;
-      else actionCounts.pendente++;
+      // Relatos antigos podem ter duas avaliações; usa uma só para o indicador.
+      const procedentAssessment = e.rootCauseAssessment ?? e.actionAssessment;
+      if (procedentAssessment === 'aplicavel') procedentCounts.aplicavel++;
+      else if (procedentAssessment === 'nao_aplicavel') procedentCounts.nao_aplicavel++;
+      else procedentCounts.pendente++;
     }
-    return { kpiRanking, statusCounts, rootCauseCounts, actionCounts };
+    return { kpiRanking, statusCounts, procedentCounts };
   }
 }
 
