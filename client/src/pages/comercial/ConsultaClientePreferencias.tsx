@@ -75,8 +75,13 @@ export default function ConsultaClientePreferencias() {
       setCodigoBusca(saved.codigoPdv);
       setFormKey((current) => current + 1);
       toast({
-        title: "Alterações salvas",
-        description: "O cadastro do PDV foi atualizado com sucesso.",
+        title: "Salvo com sucesso!",
+        description: (
+          <span className="flex items-center gap-2">
+            <span>Por mais razões para brindar</span>
+            <span className="text-2xl leading-none" role="img" aria-label="Dois copos de cerveja brindando">🍻</span>
+          </span>
+        ),
       });
     } finally {
       setIsSaving(false);
