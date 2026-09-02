@@ -43,6 +43,17 @@ export default function Landing() {
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </Link>
 
+          <Link
+            href="/comercial"
+            className="w-full group flex items-center justify-between bg-[#0f766e] text-white px-6 py-4 rounded-2xl font-bold text-lg shadow-lg shadow-[#0f766e]/20 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl leading-none" role="img" aria-label="Hang loose">🤙</span>
+              Comercial
+            </div>
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </Link>
+
           <Link 
             href="/admin" 
             className="w-full group flex items-center justify-between bg-card border-2 border-border text-foreground px-6 py-4 rounded-2xl font-bold text-lg hover:border-primary/50 hover:bg-muted/50 hover:-translate-y-1 transition-all duration-300"

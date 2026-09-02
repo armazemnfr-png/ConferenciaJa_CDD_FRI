@@ -9,6 +9,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 // Geral
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
+import Comercial from "@/pages/comercial/Comercial";
+import ClientePreferencias from "@/pages/comercial/ClientePreferencias";
 
 // Roteiro do Motorista (Conferência)
 import DriverLogin from "@/pages/driver/DriverLogin";
@@ -46,6 +48,10 @@ function Router() {
 
       {/* Fluxo do Supervisor */}
       <Route path="/supervisor/matinal" component={MatinalPlay} />
+
+      {/* Fluxo Comercial */}
+      <Route path="/comercial" component={Comercial} />
+      <Route path="/comercial/cliente-preferencias" component={ClientePreferencias} />
 
       {/* Fluxo do Administrador */}
       <Route path="/admin" component={Dashboard} />
