@@ -40718,6 +40718,11 @@ var init_drizzle_zod = __esm({
 var schema_exports = {};
 __export(schema_exports, {
   conferences: () => conferences,
+  customerPreferenceDaySchema: () => customerPreferenceDaySchema,
+  customerPreferenceHorarioOptions: () => customerPreferenceHorarioOptions,
+  customerPreferenceInputSchema: () => customerPreferenceInputSchema,
+  customerPreferenceSabadoOptions: () => customerPreferenceSabadoOptions,
+  customerPreferences: () => customerPreferences,
   driverBase: () => driverBase,
   ginfoChecklist: () => ginfoChecklist,
   insertConferenceSchema: () => insertConferenceSchema,
@@ -40738,7 +40743,7 @@ __export(schema_exports, {
   uploadMeta: () => uploadMeta,
   wmsItems: () => wmsItems
 });
-var conferences, matinals, wmsItems, promaxData, driverBase, ginfoChecklist, kpiResults, metalogEntries, insertMetalogEntrySchema, updateMetalogStatusSchema, insertKpiResultSchema, uploadMeta, insertUploadMetaSchema, insertConferenceSchema, insertWmsItemSchema, insertPromaxDataSchema, insertDriverBaseSchema, insertGinfoChecklistSchema, insertMatinalSchema, updateWmsItemSchema;
+var conferences, matinals, wmsItems, promaxData, driverBase, ginfoChecklist, kpiResults, metalogEntries, customerPreferences, insertMetalogEntrySchema, updateMetalogStatusSchema, insertKpiResultSchema, uploadMeta, insertUploadMetaSchema, insertConferenceSchema, insertWmsItemSchema, insertPromaxDataSchema, insertDriverBaseSchema, insertGinfoChecklistSchema, insertMatinalSchema, customerPreferenceDaySchema, customerPreferenceHorarioOptions, customerPreferenceSabadoOptions, customerPreferenceInputSchema, updateWmsItemSchema;
 var init_schema2 = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -40860,6 +40865,22 @@ var init_schema2 = __esm({
       evidenceData: text("evidence_data"),
       createdAt: timestamp("created_at").defaultNow()
     });
+    customerPreferences = pgTable("customer_preferences", {
+      id: serial("id").primaryKey(),
+      setor: text("setor").notNull(),
+      codigoPdv: text("codigo_pdv").notNull().unique(),
+      nomePdv: text("nome_pdv").notNull(),
+      telefone1: text("telefone_1").notNull(),
+      telefone2: text("telefone_2"),
+      diasNaoAbre: text("dias_nao_abre").notNull(),
+      observacaoEntrega: text("observacao_entrega").notNull(),
+      horarioPreferencia: text("horario_preferencia").notNull(),
+      horarioPreferenciaOutro: text("horario_preferencia_outro"),
+      horarioSabado: text("horario_sabado").notNull(),
+      horarioSabadoOutro: text("horario_sabado_outro"),
+      createdAt: timestamp("created_at").defaultNow(),
+      updatedAt: timestamp("updated_at").defaultNow().notNull()
+    });
     insertMetalogEntrySchema = createInsertSchema(metalogEntries).omit({ id: true, createdAt: true });
     updateMetalogStatusSchema = z.object({
       status: z.enum(["em_andamento", "concluida", "nao_avancou"]),
@@ -40889,6 +40910,51 @@ var init_schema2 = __esm({
     insertDriverBaseSchema = createInsertSchema(driverBase).omit({ id: true });
     insertGinfoChecklistSchema = createInsertSchema(ginfoChecklist).omit({ id: true, importedAt: true });
     insertMatinalSchema = createInsertSchema(matinals).omit({ id: true, date: true });
+    customerPreferenceDaySchema = z.enum(["Segunda", "Ter\xE7a", "Quarta", "Quinta", "Sexta"]);
+    customerPreferenceHorarioOptions = [
+      "08:00 \xE0s 18:00 (recebe hor\xE1rio de almo\xE7o)",
+      "08:00 \xE0s 12:00 e 13:00 \xE0s 18:00",
+      "08:00 \xE0s 12 e 14:00 \xE0s 18:00",
+      "08:00 \xE0s 10:00",
+      "08:00 \xE0s 11:00",
+      "08:00 \xE0s 12:00",
+      "08:00 \xE0s 10:00 e 14:00 \xE0s 16:00",
+      "12:00 \xE0s 18:00",
+      "14:00 \xE0s 18:00",
+      "Outros"
+    ];
+    customerPreferenceSabadoOptions = [
+      ...customerPreferenceHorarioOptions,
+      "N\xE3o recebe no s\xE1bado"
+    ];
+    customerPreferenceInputSchema = z.object({
+      setor: z.string().trim().min(1, "Informe o setor.").max(200),
+      codigoPdv: z.string().trim().min(1, "Informe o c\xF3digo PDV.").max(100),
+      nomePdv: z.string().trim().min(1, "Informe o nome PDV.").max(200),
+      telefone1: z.string().trim().min(1, "Informe o telefone 1.").max(50),
+      telefone2: z.string().trim().max(50).optional().nullable(),
+      diasNaoAbre: z.array(customerPreferenceDaySchema).min(1, "Selecione pelo menos um dia."),
+      observacaoEntrega: z.string().trim().min(1, "Informe a observa\xE7\xE3o na entrega.").max(2e3),
+      horarioPreferencia: z.enum(customerPreferenceHorarioOptions),
+      horarioPreferenciaOutro: z.string().trim().max(200).optional().nullable(),
+      horarioSabado: z.enum(customerPreferenceSabadoOptions),
+      horarioSabadoOutro: z.string().trim().max(200).optional().nullable()
+    }).superRefine((value, ctx) => {
+      if (value.horarioPreferencia === "Outros" && !value.horarioPreferenciaOutro) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["horarioPreferenciaOutro"],
+          message: "Descreva o hor\xE1rio de prefer\xEAncia."
+        });
+      }
+      if (value.horarioSabado === "Outros" && !value.horarioSabadoOutro) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["horarioSabadoOutro"],
+          message: "Descreva o hor\xE1rio de s\xE1bado."
+        });
+      }
+    });
     updateWmsItemSchema = z.object({
       isChecked: z.boolean().optional(),
       checkedQuantity: z.number().nullable().optional(),
@@ -41003,6 +41069,20 @@ function normalizeReg(s) {
   const trimmed = (s || "").trim();
   const num = parseInt(trimmed, 10);
   return isNaN(num) ? trimmed : String(num);
+}
+function parseCustomerPreferenceDays(value) {
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return value ? value.split(",").map((day) => day.trim()).filter(Boolean) : [];
+  }
+}
+function mapCustomerPreference(row) {
+  return {
+    ...row,
+    diasNaoAbre: parseCustomerPreferenceDays(row.diasNaoAbre)
+  };
 }
 var DatabaseStorage = class {
   async getAdherenceReport(startDate, endDate) {
@@ -41769,6 +41849,37 @@ var DatabaseStorage = class {
     }
     return { kpiRanking, statusCounts, procedentCounts };
   }
+  // --- COMERCIAL / CLIENTE - PREFERÊNCIAS ---
+  async getCustomerPreferences() {
+    const rows = await db.select().from(customerPreferences).orderBy(desc(customerPreferences.updatedAt), customerPreferences.codigoPdv);
+    return rows.map(mapCustomerPreference);
+  }
+  async getCustomerPreferenceByPdv(codigoPdv) {
+    const normalizedCode = codigoPdv.trim().toLowerCase();
+    const [row] = await db.select().from(customerPreferences).where(sql`lower(trim(${customerPreferences.codigoPdv})) = ${normalizedCode}`).limit(1);
+    return row ? mapCustomerPreference(row) : void 0;
+  }
+  async saveCustomerPreference(data) {
+    const values = {
+      setor: data.setor,
+      codigoPdv: data.codigoPdv,
+      nomePdv: data.nomePdv,
+      telefone1: data.telefone1,
+      telefone2: data.telefone2 || null,
+      diasNaoAbre: JSON.stringify(data.diasNaoAbre),
+      observacaoEntrega: data.observacaoEntrega,
+      horarioPreferencia: data.horarioPreferencia,
+      horarioPreferenciaOutro: data.horarioPreferenciaOutro || null,
+      horarioSabado: data.horarioSabado,
+      horarioSabadoOutro: data.horarioSabadoOutro || null,
+      updatedAt: /* @__PURE__ */ new Date()
+    };
+    const [row] = await db.insert(customerPreferences).values(values).onConflictDoUpdate({
+      target: customerPreferences.codigoPdv,
+      set: values
+    }).returning();
+    return mapCustomerPreference(row);
+  }
 };
 var storage = new DatabaseStorage();
 
@@ -41881,6 +41992,32 @@ var api = {
       }),
       responses: {
         201: z.object({ success: z.boolean(), count: z.number() }),
+        400: errorSchemas.validation
+      }
+    }
+  },
+  customerPreferences: {
+    list: {
+      method: "GET",
+      path: "/api/comercial/cliente-preferencias",
+      responses: {
+        200: z.array(z.custom())
+      }
+    },
+    getByPdv: {
+      method: "GET",
+      path: "/api/comercial/cliente-preferencias/:codigoPdv",
+      responses: {
+        200: z.custom(),
+        404: errorSchemas.notFound
+      }
+    },
+    save: {
+      method: "POST",
+      path: "/api/comercial/cliente-preferencias",
+      input: customerPreferenceInputSchema,
+      responses: {
+        200: z.custom(),
         400: errorSchemas.validation
       }
     }
@@ -42003,6 +42140,43 @@ async function registerRoutes(httpServer2, app2) {
       res.json(data);
     } catch (err) {
       res.status(500).json({ message: "Erro ao buscar checklist Ginfo." });
+    }
+  });
+  app2.get("/api/comercial/cliente-preferencias", async (_req, res) => {
+    try {
+      const data = await storage.getCustomerPreferences();
+      res.json(data);
+    } catch (err) {
+      console.error("Erro ao listar prefer\xEAncias de clientes:", err);
+      res.status(500).json({ message: "Erro ao buscar prefer\xEAncias dos clientes." });
+    }
+  });
+  app2.get("/api/comercial/cliente-preferencias/:codigoPdv", async (req, res) => {
+    try {
+      const data = await storage.getCustomerPreferenceByPdv(req.params.codigoPdv);
+      if (!data) {
+        return res.status(404).json({ message: "Nenhum cliente encontrado para este C\xF3digo PDV." });
+      }
+      res.json(data);
+    } catch (err) {
+      console.error("Erro ao consultar prefer\xEAncia de cliente:", err);
+      res.status(500).json({ message: "Erro ao consultar o cliente." });
+    }
+  });
+  app2.post("/api/comercial/cliente-preferencias", async (req, res) => {
+    try {
+      const input = api.customerPreferences.save.input.parse(req.body);
+      const data = await storage.saveCustomerPreference(input);
+      res.json(data);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0]?.message || "Confira os campos obrigat\xF3rios.",
+          field: err.errors[0]?.path.join(".")
+        });
+      }
+      console.error("Erro ao salvar prefer\xEAncia de cliente:", err);
+      res.status(500).json({ message: "Erro ao salvar os dados do cliente." });
     }
   });
   app2.get("/api/tml", async (req, res) => {

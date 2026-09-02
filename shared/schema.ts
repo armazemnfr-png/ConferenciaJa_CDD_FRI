@@ -124,6 +124,23 @@ export const metalogEntries = pgTable("metalog_entries", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const customerPreferences = pgTable("customer_preferences", {
+  id: serial("id").primaryKey(),
+  setor: text("setor").notNull(),
+  codigoPdv: text("codigo_pdv").notNull().unique(),
+  nomePdv: text("nome_pdv").notNull(),
+  telefone1: text("telefone_1").notNull(),
+  telefone2: text("telefone_2"),
+  diasNaoAbre: text("dias_nao_abre").notNull(),
+  observacaoEntrega: text("observacao_entrega").notNull(),
+  horarioPreferencia: text("horario_preferencia").notNull(),
+  horarioPreferenciaOutro: text("horario_preferencia_outro"),
+  horarioSabado: text("horario_sabado").notNull(),
+  horarioSabadoOutro: text("horario_sabado_outro"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const insertMetalogEntrySchema = createInsertSchema(metalogEntries).omit({ id: true, createdAt: true });
 export type MetalogEntry = typeof metalogEntries.$inferSelect;
 export type MetalogEntrySummary = Omit<MetalogEntry, "evidenceData">;
@@ -164,6 +181,59 @@ export const insertPromaxDataSchema = createInsertSchema(promaxData).omit({ id: 
 export const insertDriverBaseSchema = createInsertSchema(driverBase).omit({ id: true });
 export const insertGinfoChecklistSchema = createInsertSchema(ginfoChecklist).omit({ id: true, importedAt: true });
 export const insertMatinalSchema = createInsertSchema(matinals).omit({ id: true, date: true });
+
+export const customerPreferenceDaySchema = z.enum(["Segunda", "Terça", "Quarta", "Quinta", "Sexta"]);
+export const customerPreferenceHorarioOptions = [
+  "08:00 às 18:00 (recebe horário de almoço)",
+  "08:00 às 12:00 e 13:00 às 18:00",
+  "08:00 às 12 e 14:00 às 18:00",
+  "08:00 às 10:00",
+  "08:00 às 11:00",
+  "08:00 às 12:00",
+  "08:00 às 10:00 e 14:00 às 16:00",
+  "12:00 às 18:00",
+  "14:00 às 18:00",
+  "Outros",
+] as const;
+export const customerPreferenceSabadoOptions = [
+  ...customerPreferenceHorarioOptions,
+  "Não recebe no sábado",
+] as const;
+
+export const customerPreferenceInputSchema = z.object({
+  setor: z.string().trim().min(1, "Informe o setor.").max(200),
+  codigoPdv: z.string().trim().min(1, "Informe o código PDV.").max(100),
+  nomePdv: z.string().trim().min(1, "Informe o nome PDV.").max(200),
+  telefone1: z.string().trim().min(1, "Informe o telefone 1.").max(50),
+  telefone2: z.string().trim().max(50).optional().nullable(),
+  diasNaoAbre: z.array(customerPreferenceDaySchema).min(1, "Selecione pelo menos um dia."),
+  observacaoEntrega: z.string().trim().min(1, "Informe a observação na entrega.").max(2000),
+  horarioPreferencia: z.enum(customerPreferenceHorarioOptions),
+  horarioPreferenciaOutro: z.string().trim().max(200).optional().nullable(),
+  horarioSabado: z.enum(customerPreferenceSabadoOptions),
+  horarioSabadoOutro: z.string().trim().max(200).optional().nullable(),
+}).superRefine((value, ctx) => {
+  if (value.horarioPreferencia === "Outros" && !value.horarioPreferenciaOutro) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["horarioPreferenciaOutro"],
+      message: "Descreva o horário de preferência.",
+    });
+  }
+  if (value.horarioSabado === "Outros" && !value.horarioSabadoOutro) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["horarioSabadoOutro"],
+      message: "Descreva o horário de sábado.",
+    });
+  }
+});
+
+export type CustomerPreferenceRow = typeof customerPreferences.$inferSelect;
+export type CustomerPreferenceInput = z.infer<typeof customerPreferenceInputSchema>;
+export type CustomerPreference = Omit<CustomerPreferenceRow, "diasNaoAbre"> & {
+  diasNaoAbre: string[];
+};
 
 export const updateWmsItemSchema = z.object({
   isChecked: z.boolean().optional(),

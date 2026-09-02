@@ -1,5 +1,15 @@
 import { z } from 'zod';
-import { insertConferenceSchema, insertWmsItemSchema, insertMatinalSchema, updateWmsItemSchema, conferences, wmsItems, matinals } from './schema';
+import {
+  insertConferenceSchema,
+  insertWmsItemSchema,
+  insertMatinalSchema,
+  updateWmsItemSchema,
+  customerPreferenceInputSchema,
+  customerPreferences,
+  conferences,
+  wmsItems,
+  matinals,
+} from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -111,6 +121,32 @@ export const api = {
         400: errorSchemas.validation,
       }
     }
+  },
+  customerPreferences: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/comercial/cliente-preferencias' as const,
+      responses: {
+        200: z.array(z.custom<typeof customerPreferences.$inferSelect>()),
+      },
+    },
+    getByPdv: {
+      method: 'GET' as const,
+      path: '/api/comercial/cliente-preferencias/:codigoPdv' as const,
+      responses: {
+        200: z.custom<typeof customerPreferences.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    save: {
+      method: 'POST' as const,
+      path: '/api/comercial/cliente-preferencias' as const,
+      input: customerPreferenceInputSchema,
+      responses: {
+        200: z.custom<typeof customerPreferences.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
   }
 };
 

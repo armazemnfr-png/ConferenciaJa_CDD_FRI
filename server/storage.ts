@@ -9,6 +9,7 @@ import {
   uploadMeta,
   kpiResults,
   metalogEntries,
+  customerPreferences,
   type Conference,
   type WmsItem,
   type PromaxData,
@@ -30,6 +31,8 @@ import {
   type MetalogEntry,
   type MetalogEntrySummary,
   type InsertMetalogEntry,
+  type CustomerPreference,
+  type CustomerPreferenceInput,
 } from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
 
@@ -71,6 +74,22 @@ function normalizeReg(s: string): string {
   const trimmed = (s || "").trim();
   const num = parseInt(trimmed, 10);
   return isNaN(num) ? trimmed : String(num);
+}
+
+function parseCustomerPreferenceDays(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return value ? value.split(",").map((day) => day.trim()).filter(Boolean) : [];
+  }
+}
+
+function mapCustomerPreference(row: typeof customerPreferences.$inferSelect): CustomerPreference {
+  return {
+    ...row,
+    diasNaoAbre: parseCustomerPreferenceDays(row.diasNaoAbre),
+  };
 }
 
 export type ConferenceWithMetrics = Conference;
@@ -152,6 +171,9 @@ export interface IStorage {
     size: number;
     data: string;
   } | undefined>;
+  getCustomerPreferences(): Promise<CustomerPreference[]>;
+  getCustomerPreferenceByPdv(codigoPdv: string): Promise<CustomerPreference | undefined>;
+  saveCustomerPreference(data: CustomerPreferenceInput): Promise<CustomerPreference>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1192,6 +1214,51 @@ export class DatabaseStorage implements IStorage {
       else procedentCounts.pendente++;
     }
     return { kpiRanking, statusCounts, procedentCounts };
+  }
+
+  // --- COMERCIAL / CLIENTE - PREFERÊNCIAS ---
+  async getCustomerPreferences(): Promise<CustomerPreference[]> {
+    const rows = await db
+      .select()
+      .from(customerPreferences)
+      .orderBy(desc(customerPreferences.updatedAt), customerPreferences.codigoPdv);
+    return rows.map(mapCustomerPreference);
+  }
+
+  async getCustomerPreferenceByPdv(codigoPdv: string): Promise<CustomerPreference | undefined> {
+    const normalizedCode = codigoPdv.trim().toLowerCase();
+    const [row] = await db
+      .select()
+      .from(customerPreferences)
+      .where(sql`lower(trim(${customerPreferences.codigoPdv})) = ${normalizedCode}`)
+      .limit(1);
+    return row ? mapCustomerPreference(row) : undefined;
+  }
+
+  async saveCustomerPreference(data: CustomerPreferenceInput): Promise<CustomerPreference> {
+    const values = {
+      setor: data.setor,
+      codigoPdv: data.codigoPdv,
+      nomePdv: data.nomePdv,
+      telefone1: data.telefone1,
+      telefone2: data.telefone2 || null,
+      diasNaoAbre: JSON.stringify(data.diasNaoAbre),
+      observacaoEntrega: data.observacaoEntrega,
+      horarioPreferencia: data.horarioPreferencia,
+      horarioPreferenciaOutro: data.horarioPreferenciaOutro || null,
+      horarioSabado: data.horarioSabado,
+      horarioSabadoOutro: data.horarioSabadoOutro || null,
+      updatedAt: new Date(),
+    };
+    const [row] = await db
+      .insert(customerPreferences)
+      .values(values)
+      .onConflictDoUpdate({
+        target: customerPreferences.codigoPdv,
+        set: values,
+      })
+      .returning();
+    return mapCustomerPreference(row);
   }
 }
 

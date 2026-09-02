@@ -149,6 +149,47 @@ export async function registerRoutes(
     }
   });
 
+  // --- COMERCIAL / CLIENTE - PREFERÊNCIAS ---
+  app.get("/api/comercial/cliente-preferencias", async (_req, res) => {
+    try {
+      const data = await storage.getCustomerPreferences();
+      res.json(data);
+    } catch (err) {
+      console.error("Erro ao listar preferências de clientes:", err);
+      res.status(500).json({ message: "Erro ao buscar preferências dos clientes." });
+    }
+  });
+
+  app.get("/api/comercial/cliente-preferencias/:codigoPdv", async (req, res) => {
+    try {
+      const data = await storage.getCustomerPreferenceByPdv(req.params.codigoPdv);
+      if (!data) {
+        return res.status(404).json({ message: "Nenhum cliente encontrado para este Código PDV." });
+      }
+      res.json(data);
+    } catch (err) {
+      console.error("Erro ao consultar preferência de cliente:", err);
+      res.status(500).json({ message: "Erro ao consultar o cliente." });
+    }
+  });
+
+  app.post("/api/comercial/cliente-preferencias", async (req, res) => {
+    try {
+      const input = api.customerPreferences.save.input.parse(req.body);
+      const data = await storage.saveCustomerPreference(input);
+      res.json(data);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0]?.message || "Confira os campos obrigatórios.",
+          field: err.errors[0]?.path.join("."),
+        });
+      }
+      console.error("Erro ao salvar preferência de cliente:", err);
+      res.status(500).json({ message: "Erro ao salvar os dados do cliente." });
+    }
+  });
+
   app.get("/api/tml", async (req, res) => {
     try {
       const data = await storage.getTmlData();

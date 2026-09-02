@@ -11,6 +11,7 @@ import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
 import Comercial from "@/pages/comercial/Comercial";
 import ClientePreferencias from "@/pages/comercial/ClientePreferencias";
+import ConsultaClientePreferencias from "@/pages/comercial/ConsultaClientePreferencias";
 
 // Roteiro do Motorista (Conferência)
 import DriverLogin from "@/pages/driver/DriverLogin";
@@ -52,6 +53,7 @@ function Router() {
       {/* Fluxo Comercial */}
       <Route path="/comercial" component={Comercial} />
       <Route path="/comercial/cliente-preferencias" component={ClientePreferencias} />
+      <Route path="/comercial/cliente-preferencias/consulta" component={ConsultaClientePreferencias} />
 
       {/* Fluxo do Administrador */}
       <Route path="/admin" component={Dashboard} />

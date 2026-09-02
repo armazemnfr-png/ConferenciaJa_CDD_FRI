@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { ArrowLeft, ArrowRight, ClipboardList } from "lucide-react";
+import { ArrowLeft, ArrowRight, ClipboardList, Search } from "lucide-react";
 
 export default function Comercial() {
   return (
@@ -35,6 +35,24 @@ export default function Comercial() {
               <h2 className="text-lg font-bold text-foreground">Cliente - Preferências</h2>
               <p className="text-sm text-muted-foreground mt-1">
                 Formulário para registrar as preferências dos clientes.
+              </p>
+            </div>
+          </div>
+          <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:translate-x-1 group-hover:text-[#0f766e] transition-all shrink-0" />
+        </Link>
+
+        <Link
+          href="/comercial/cliente-preferencias/consulta"
+          className="group flex items-center justify-between bg-card border border-border rounded-2xl p-5 md:p-6 shadow-sm hover:border-[#0f766e]/50 hover:shadow-lg hover:-translate-y-0.5 transition-all mt-4"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-[#0f766e]/10 flex items-center justify-center">
+              <Search className="w-6 h-6 text-[#0f766e]" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">Consulta de clientes</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Busque por Código PDV, consulte e edite um cadastro existente.
               </p>
             </div>
           </div>
