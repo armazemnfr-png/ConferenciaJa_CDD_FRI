@@ -182,7 +182,7 @@ export const insertDriverBaseSchema = createInsertSchema(driverBase).omit({ id: 
 export const insertGinfoChecklistSchema = createInsertSchema(ginfoChecklist).omit({ id: true, importedAt: true });
 export const insertMatinalSchema = createInsertSchema(matinals).omit({ id: true, date: true });
 
-export const customerPreferenceDaySchema = z.enum(["Segunda", "Terça", "Quarta", "Quinta", "Sexta"]);
+export const customerPreferenceDaySchema = z.enum(["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]);
 export const customerPreferenceHorarioOptions = [
   "08:00 às 18:00 (recebe horário de almoço)",
   "08:00 às 12:00 e 13:00 às 18:00",
