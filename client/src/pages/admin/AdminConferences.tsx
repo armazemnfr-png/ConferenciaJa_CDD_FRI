@@ -98,27 +98,37 @@ export default function ConferencesHistory() {
       const hasDmg = conf.hasDamage === true || Number(conf.hasDamage) === 1;
       const startTime = conf.startTime ? new Date(conf.startTime) : null;
       const endTime = conf.endTime ? new Date(conf.endTime) : null;
-      let durMin = "";
+
+      let durationFormatted = "-";
       if (startTime && endTime) {
         const diffSec = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
-        durMin = String(Math.round(diffSec / 60));
+        const mins = Math.floor(diffSec / 60);
+        const secs = diffSec % 60;
+        durationFormatted = `${mins}m ${secs}s`;
       }
+
+      // Adiciona caractere invisível (\u200B) para forçar o Excel a exibir como Texto Completo com segundos
+      const formatDateTimeWithSeconds = (dt: Date) => {
+        const formatted = format(dt, "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
+        return `\u200B${formatted}`;
+      };
+
       const info = driverMap.get(normalizeReg(conf.driverId ?? ""));
       return [
         conf.mapNumber,
         conf.driverId ?? "",
         info?.name ?? "",
         info?.room ?? "",
-        startTime ? format(startTime, "dd/MM/yyyy HH:mm", { locale: ptBR }) : "",
-        endTime ? format(endTime, "dd/MM/yyyy HH:mm", { locale: ptBR }) : "",
-        durMin,
+        startTime ? formatDateTimeWithSeconds(startTime) : "",
+        endTime ? formatDateTimeWithSeconds(endTime) : "",
+        durationFormatted,
         hasDiv ? "Sim" : "Não",
         hasDmg ? "Sim" : "Não",
         conf.status ?? "",
       ];
     });
 
-    const header = ["Mapa", "Matrícula", "Colaborador", "Sala", "Início", "Fim", "Duração (min)", "Divergência", "Avaria", "Status"];
+    const header = ["Mapa", "Matrícula", "Colaborador", "Sala", "Início", "Fim", "Duração", "Divergência", "Avaria", "Status"];
     const csvContent = [header, ...rows]
       .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";"))
       .join("\n");
@@ -301,7 +311,7 @@ export default function ConferencesHistory() {
                       })()}
                     </TableCell>
                     <TableCell className="text-sm text-slate-500">
-                      {conf.startTime ? format(new Date(conf.startTime), "dd/MM/yy HH:mm", { locale: ptBR }) : "-"}
+                      {conf.startTime ? format(new Date(conf.startTime), "dd/MM/yy HH:mm:ss", { locale: ptBR }) : "-"}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5 text-sm text-slate-600">
