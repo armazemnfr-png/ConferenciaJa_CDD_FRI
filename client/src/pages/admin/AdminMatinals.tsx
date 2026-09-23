@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { api } from "@shared/routes";
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
-import { Play, Filter, CalendarDays, X, Trash2 } from "lucide-react";
+import { ptBR } from "date-fns/locale";
+import { Play, Filter, CalendarDays, X, Trash2, Download } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -67,14 +68,67 @@ export default function AdminMatinals() {
     setEndDate(todayStr());
   }
 
+  const handleExportCsv = () => {
+    if (!filteredMatinals || filteredMatinals.length === 0) return;
+
+    const rows = filteredMatinals.map(m => {
+      const dateFormatted = m.date ? format(new Date(m.date), "dd/MM/yyyy", { locale: ptBR }) : "";
+
+      // Adiciona \u200B para forçar o Excel a ler como texto literal com segundos
+      const fixedStartFormatted = m.fixedStartTime ? `\u200B${m.fixedStartTime}` : "";
+      const actualEndFormatted = m.actualEndTime 
+        ? `\u200B${format(new Date(m.actualEndTime), "HH:mm:ss")}` 
+        : "";
+
+      return [
+        dateFormatted,
+        m.roomName ?? "",
+        fixedStartFormatted,
+        actualEndFormatted,
+        m.durationMinutes ? `${m.durationMinutes} min` : "0 min",
+      ];
+    });
+
+    const header = ["Data", "Sala", "Início Fixo", "Finalizado Em", "Duração (Min)"];
+    const csvContent = [header, ...rows]
+      .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";"))
+      .join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const today = format(new Date(), "yyyy-MM-dd");
+    link.href = url;
+    link.download = `historico_matinais_${today}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const hasActiveFilters = roomFilter !== "all" || startDate !== last7Days() || endDate !== todayStr();
 
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-accent font-display">Histórico de Matinais</h1>
-          <p className="text-muted-foreground">Registros de tempo das salas Corona e Stella.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-accent font-display">Histórico de Matinais</h1>
+            <p className="text-muted-foreground">Registros de tempo das salas Corona e Stella.</p>
+          </div>
+
+          <Button
+            onClick={handleExportCsv}
+            disabled={!filteredMatinals || filteredMatinals.length === 0}
+            data-testid="button-export-matinals-csv"
+            className="shrink-0 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+          >
+            <Download className="w-4 h-4" />
+            Exportar CSV
+            {filteredMatinals && filteredMatinals.length > 0 && (
+              <span className="ml-1 bg-white/20 rounded px-1.5 py-0.5 text-xs font-mono">
+                {filteredMatinals.length}
+              </span>
+            )}
+          </Button>
         </div>
 
         {/* Filtros */}
